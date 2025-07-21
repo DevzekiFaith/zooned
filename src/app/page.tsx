@@ -99,16 +99,13 @@ export default function Home() {
     setVideoNote("");
   }, []);
 
-  const handleVideoSchedule = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      // Generate a Jitsi Meet link for demo (can be replaced with other providers)
-      const room = `onboarding-${Date.now()}`;
-      const url = `https://meet.jit.si/${room}`;
-      setMeetingUrl(url);
-    },
-    []
-  );
+  const handleVideoSchedule = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    // Generate a Jitsi Meet link for demo (can be replaced with other providers)
+    const room = `onboarding-${Date.now()}`;
+    const url = `https://meet.jit.si/${room}`;
+    setMeetingUrl(url);
+  }, []);
 
   const handleJoinMeeting = () => {
     if (meetingUrl) window.open(meetingUrl, "_blank");
@@ -307,7 +304,9 @@ export default function Home() {
             </div>
             {meetingUrl && (
               <div className="mt-4 p-3 bg-blue-50 rounded text-center">
-                <div className="font-semibold text-blue-700 mb-2">Meeting Link:</div>
+                <div className="font-semibold text-blue-700 mb-2">
+                  Meeting Link:
+                </div>
                 <a
                   href={meetingUrl}
                   target="_blank"

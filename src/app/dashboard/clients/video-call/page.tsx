@@ -1,19 +1,21 @@
 "use client";
+
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { auth, db } from "@/firebase";
 import { collection, addDoc, getDocs, serverTimestamp } from "firebase/firestore";
 import { FaVideo, FaCalendarAlt, FaLink } from "react-icons/fa";
 
 export default function VideoCallPage() {
-  const { clientId } = useParams();
+  const params = useSearchParams();
+  const clientId = params?.get("clientId") || "default"; // default value if no clientId is provided
   const user = auth.currentUser!;
   const [date, setDate] = useState("");
   const [note, setNote] = useState("");
   const [calls, setCalls] = useState<any[]>([]);
   const [meetingUrl, setMeetingUrl] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Generate a simple meeting link (for demo, use Jitsi Meet)
   const generateMeetingUrl = () => {
     const room = `onboarding-${user.uid}-${clientId}-${Date.now()}`;
     return `https://meet.jit.si/${room}`;
@@ -22,21 +24,33 @@ export default function VideoCallPage() {
   const scheduleCall = async () => {
     if (!date) return;
     const url = generateMeetingUrl();
-    await addDoc(collection(db, "users", user.uid, "clients", String(clientId), "videoCalls"), {
+    const callData = {
       note,
       date: new Date(date),
       meetingUrl: url,
-      createdAt: serverTimestamp()
-    });
+      createdAt: serverTimestamp(),
+    };
+    await addDoc(collection(db, "users", user.uid, "clients", clientId, "videoCalls"), callData);
+    localStorage.setItem(`videoCalls-${clientId}`, JSON.stringify([callData, ...calls]));
     setNote("");
     setDate("");
     setMeetingUrl(url);
-    fetchCalls(); // refresh
+    fetchCalls();
   };
 
   const fetchCalls = async () => {
-    const snapshot = await getDocs(collection(db, "users", user.uid, "clients", String(clientId), "videoCalls"));
-    setCalls(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    setLoading(true);
+    try {
+      const snapshot = await getDocs(collection(db, "users", user.uid, "clients", clientId, "videoCalls"));
+      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCalls(fetched);
+      localStorage.setItem(`videoCalls-${clientId}`, JSON.stringify(fetched));
+    } catch {
+      const offline = localStorage.getItem(`videoCalls-${clientId}`);
+      if (offline) setCalls(JSON.parse(offline));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -94,38 +108,46 @@ export default function VideoCallPage() {
       )}
 
       <h3 className="text-lg font-semibold mt-6">Scheduled Calls</h3>
-      <ul className="space-y-2">
-        {calls.map(call => (
-          <li key={call.id} className="border p-2 rounded">
-            <p>
-              <strong>Date:</strong>{" "}
-              {call.date?.seconds
-                ? new Date(call.date.seconds * 1000).toLocaleString()
-                : ""}
-            </p>
-            <p>
-              <strong>Note:</strong> {call.note}
-            </p>
-            <p>
-              <strong>Meeting Link:</strong>{" "}
-              <a
-                href={call.meetingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-700 underline break-all"
+      {loading ? (
+        <ul className="space-y-2 animate-pulse">
+          {[...Array(2)].map((_, i) => (
+            <li key={i} className="h-20 bg-gray-200 rounded" />
+          ))}
+        </ul>
+      ) : (
+        <ul className="space-y-2">
+          {calls.map(call => (
+            <li key={call.id} className="border p-2 rounded">
+              <p>
+                <strong>Date:</strong>{" "}
+                {call.date?.seconds
+                  ? new Date(call.date.seconds * 1000).toLocaleString()
+                  : ""}
+              </p>
+              <p>
+                <strong>Note:</strong> {call.note}
+              </p>
+              <p>
+                <strong>Meeting Link:</strong>{" "}
+                <a
+                  href={call.meetingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-700 underline break-all"
+                >
+                  {call.meetingUrl}
+                </a>
+              </p>
+              <button
+                className="mt-2 bg-green-600 text-white px-4 py-1 rounded"
+                onClick={() => window.open(call.meetingUrl, "_blank")}
               >
-                {call.meetingUrl}
-              </a>
-            </p>
-            <button
-              className="mt-2 bg-green-600 text-white px-4 py-1 rounded"
-              onClick={() => window.open(call.meetingUrl, "_blank")}
-            >
-              Join Call
-            </button>
-          </li>
-        ))}
-      </ul>
+                Join Call
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

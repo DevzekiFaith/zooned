@@ -7,7 +7,8 @@ import {
   BuildingOffice2Icon,
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/solid";
-
+// import AIAssistant from "@/components/AIAssistant";
+import { useRouter } from "next/navigation";
 export default function ClientOnboardingPage() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
@@ -37,9 +38,6 @@ export default function ClientOnboardingPage() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleNext = () => setStep((s) => s + 1);
-  const handleBack = () => setStep((s) => s - 1);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
@@ -48,17 +46,15 @@ export default function ClientOnboardingPage() {
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-100">
-        <div className="bg-white rounded-xl shadow-lg p-10 max-w-md w-full flex flex-col items-center animate-fade-in">
-          <CheckCircleIcon className="w-16 h-16 text-green-500 mb-4" />
-          <h2 className="text-2xl font-bold mb-2 text-green-700">
-            Client Onboarded!
-          </h2>
-          <p className="text-gray-600 mb-4">
-            You have successfully onboarded{" "}
-            <span className="font-semibold">{form.name}</span>.
+        <div className="bg-white rounded-xl shadow-xl p-10 max-w-md w-full flex flex-col items-center transform transition duration-700 scale-95 hover:scale-100">
+          <CheckCircleIcon className="w-16 h-16 text-green-500 mb-4 animate-bounce" />
+          <h2 className="text-3xl font-bold mb-2 text-green-700">Success!</h2>
+          <p className="text-gray-600 mb-4 text-center">
+            Client <span className="font-semibold">{form.name}</span> onboarded
+            successfully.
           </p>
           <button
-            className="mt-2 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+            className="mt-2 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-transform transform hover:scale-105"
             onClick={() => {
               setForm({
                 name: "",
@@ -71,44 +67,32 @@ export default function ClientOnboardingPage() {
               setSubmitted(false);
             }}
           >
-            Add Another Client
+            Add Another
           </button>
         </div>
-        <style jsx global>{`
-          @keyframes fade-in {
-            from {
-              opacity: 0;
-              transform: translateY(16px);
-            }
-            to {
-              opacity: 1;
-              transform: none;
-            }
-          }
-          .animate-fade-in {
-            animation: fade-in 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
-          }
-        `}</style>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-100 px-4">
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md flex flex-col gap-6 animate-fade-in"
+        className="bg-white rounded-xl shadow-xl p-8 w-full max-w-md flex flex-col gap-6 transform transition-all duration-500 hover:scale-[1.01] hover:-translate-y-1"
       >
-        <h1 className="text-2xl font-bold text-center text-blue-700 mb-2">
+        <h1 className="text-3xl font-bold text-center text-blue-700">
           Client Onboarding
         </h1>
-        {/* Progress Bar */}
-        <div className="flex items-center justify-center gap-4 mb-6">
+
+        <div className="flex items-center justify-center gap-4">
           {steps.map((s, idx) => (
-            <div key={s.label} className="flex flex-col items-center">
+            <div
+              key={s.label}
+              className="flex flex-col items-center transition-transform transform hover:scale-110"
+            >
               <div
-                className={`rounded-full p-2 ${
-                  step === idx + 1 ? "bg-blue-100" : "bg-gray-100"
+                className={`rounded-full p-2 transition-transform duration-300 ${
+                  step === idx + 1 ? "bg-blue-100 scale-110" : "bg-gray-100"
                 }`}
               >
                 {s.icon}
@@ -125,123 +109,122 @@ export default function ClientOnboardingPage() {
             </div>
           ))}
         </div>
-        <div className="h-2 w-full bg-gray-200 rounded-full mb-4">
+
+        <div className="h-2 w-full bg-gray-200 rounded-full">
           <div
             className="h-2 bg-blue-500 rounded-full transition-all"
             style={{ width: `${(step / steps.length) * 100}%` }}
           />
         </div>
 
-        {/* Step Content */}
         {step === 1 && (
-          <>
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold">Full Name</span>
+          <div className="animate-fade-in-up">
+            <label className="block mb-2">
+              <span className="block font-medium">Full Name</span>
               <input
                 name="name"
                 value={form.name}
                 onChange={handleChange}
                 required
-                className="border rounded px-3 py-2"
+                className="input"
                 placeholder="Client Name"
               />
             </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold">Email</span>
+            <label className="block mb-2">
+              <span className="block font-medium">Email</span>
               <input
                 name="email"
                 type="email"
                 value={form.email}
                 onChange={handleChange}
                 required
-                className="border rounded px-3 py-2"
+                className="input"
                 placeholder="client@email.com"
               />
             </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold">Phone</span>
+            <label className="block mb-2">
+              <span className="block font-medium">Phone</span>
               <input
                 name="phone"
                 type="tel"
                 value={form.phone}
                 onChange={handleChange}
                 required
-                className="border rounded px-3 py-2"
+                className="input"
                 placeholder="Phone Number"
               />
             </label>
-          </>
+          </div>
         )}
 
         {step === 2 && (
-          <>
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold">Company (optional)</span>
+          <div className="animate-fade-in-up">
+            <label className="block mb-2">
+              <span className="block font-medium">Company</span>
               <input
                 name="company"
                 value={form.company}
                 onChange={handleChange}
-                className="border rounded px-3 py-2"
+                className="input"
                 placeholder="Company Name"
               />
             </label>
-          </>
+          </div>
         )}
 
         {step === 3 && (
-          <>
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold">Notes (optional)</span>
+          <div className="animate-fade-in-up">
+            <label className="block mb-2">
+              <span className="block font-medium">Notes</span>
               <textarea
                 name="notes"
                 value={form.notes}
                 onChange={handleChange}
-                className="border rounded px-3 py-2"
-                placeholder="Any extra notes about the client"
+                className="input"
+                placeholder="Extra notes..."
               />
             </label>
-            {/* Summary */}
-            <div className="bg-blue-50 rounded p-4 mt-4 text-sm text-blue-900">
+            <div className="bg-blue-50 rounded p-4 mt-4 text-sm text-blue-900 space-y-1">
               <div>
-                <span className="font-semibold">Name:</span> {form.name}
+                <strong>Name:</strong> {form.name}
               </div>
               <div>
-                <span className="font-semibold">Email:</span> {form.email}
+                <strong>Email:</strong> {form.email}
               </div>
               <div>
-                <span className="font-semibold">Phone:</span> {form.phone}
+                <strong>Phone:</strong> {form.phone}
               </div>
               {form.company && (
                 <div>
-                  <span className="font-semibold">Company:</span> {form.company}
+                  <strong>Company:</strong> {form.company}
                 </div>
               )}
               {form.notes && (
                 <div>
-                  <span className="font-semibold">Notes:</span> {form.notes}
+                  <strong>Notes:</strong> {form.notes}
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between mt-4">
+        <div className="flex justify-between mt-6">
           {step > 1 ? (
             <button
               type="button"
-              onClick={handleBack}
+              onClick={() => setStep(step - 1)}
               className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition"
             >
               Back
             </button>
           ) : (
-            <span />
+            <div />
           )}
+
           {step < steps.length ? (
             <button
               type="button"
-              onClick={handleNext}
+              onClick={() => setStep(step + 1)}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
               disabled={
                 step === 1 && (!form.name || !form.email || !form.phone)
@@ -260,19 +243,23 @@ export default function ClientOnboardingPage() {
           )}
         </div>
       </form>
+
       <style jsx global>{`
-        @keyframes fade-in {
+        @keyframes fade-in-up {
           from {
             opacity: 0;
-            transform: translateY(16px);
+            transform: translateY(20px);
           }
           to {
             opacity: 1;
             transform: none;
           }
         }
-        .animate-fade-in {
-          animation: fade-in 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
+        .animate-fade-in-up {
+          animation: fade-in-up 0.5s ease-out both;
+        }
+        .input {
+          @apply w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400;
         }
       `}</style>
     </div>

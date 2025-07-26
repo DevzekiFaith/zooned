@@ -1,386 +1,385 @@
 "use client";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { auth, db } from "@/firebase";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import {
-  collection,
-  addDoc,
-  getDocs,
-  serverTimestamp,
-  Timestamp,
-} from "firebase/firestore";
-import { FaPlus, FaFilePdf, FaTrash } from "react-icons/fa";
-import jsPDF from "jspdf";
 
-type InvoiceItem = {
+import { useEffect, useState, ChangeEvent } from "react";
+import {
+  FaFileDownload,
+  FaPlus,
+  FaTrash,
+  FaExclamationCircle,
+  FaEye,
+  FaCheckCircle,
+  FaWhatsapp,
+  FaEnvelope,
+} from "react-icons/fa";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
+interface InvoiceItem {
   description: string;
   quantity: number;
   rate: number;
-  amount: number;
-};
-
-interface InvoiceData {
-  id?: string;
-  clientId: string;
-  invoiceNumber: string;
-  issuedAt: Timestamp;
-  dueDate: Timestamp;
-  items: InvoiceItem[];
-  total: number;
-  paymentType: "Full" | "Part";
-  paidAmount: number;
-  company: string;
-  clientName: string;
-  clientEmail: string;
-  clientContact: string;
-  pdfUrl: string;
 }
 
-function generateInvoicePDF(invoice: InvoiceData) {
-  const doc = new jsPDF();
-  doc.setFontSize(18);
-  doc.text("Invoice Receipt", 20, 20);
-  doc.setFontSize(12);
-  doc.text(`Invoice #: ${invoice.invoiceNumber}`, 20, 30);
-  doc.text(`Company: ${invoice.company}`, 20, 38);
-  doc.text(`Client: ${invoice.clientName}`, 20, 46);
-  doc.text(`Email: ${invoice.clientEmail}`, 20, 54);
-  doc.text(`Contact: ${invoice.clientContact}`, 20, 62);
-  doc.text(
-    `Issued: ${
-      invoice.issuedAt instanceof Timestamp
-        ? invoice.issuedAt.toDate().toLocaleDateString()
-        : ""
-    }`,
-    20,
-    70
-  );
-  doc.text(
-    `Due: ${
-      invoice.dueDate instanceof Timestamp
-        ? invoice.dueDate.toDate().toLocaleDateString()
-        : ""
-    }`,
-    20,
-    78
-  );
-
-  doc.text("Items:", 20, 88);
-  let y = 96;
-  invoice.items.forEach((item, idx) => {
-    doc.text(
-      `${idx + 1}. ${item.description} | Qty: ${item.quantity} | Rate: $${
-        item.rate
-      } | Amount: $${item.amount}`,
-      20,
-      y
-    );
-    y += 8;
-  });
-
-  doc.text(`Total: $${invoice.total}`, 20, y + 8);
-  doc.text(`Payment Type: ${invoice.paymentType}`, 20, y + 16);
-  doc.text(`Paid Amount: $${invoice.paidAmount}`, 20, y + 24);
-
-  return doc.output("blob");
+interface Invoice {
+  clientName: string;
+  clientEmail: string;
+  clientAddress: string;
+  date: string;
+  partPayment: number;
+  completePayment: boolean;
+  tax: number;
+  discount: number;
+  items: InvoiceItem[];
+  logo?: string;
 }
 
 export default function InvoicePage() {
-  const { clientId } = useParams();
-  const user = auth.currentUser!;
-  const [items, setItems] = useState<InvoiceItem[]>([
-    { description: "", quantity: 1, rate: 0, amount: 0 },
-  ]);
-  const [dueDate, setDueDate] = useState("");
-  const [invoices, setInvoices] = useState<InvoiceData[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [invoice, setInvoice] = useState<Invoice>(() => {
+    const stored = localStorage.getItem("invoice-data");
+    return stored
+      ? JSON.parse(stored)
+      : {
+          clientName: "",
+          clientEmail: "",
+          clientAddress: "",
+          date: new Date().toISOString().split("T")[0],
+          partPayment: 0,
+          completePayment: false,
+          tax: 0,
+          discount: 0,
+          items: [{ description: "", quantity: 1, rate: 0 }],
+          logo: "",
+        };
+  });
 
-  // New fields
-  const [company, setCompany] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientContact, setClientContact] = useState("");
-  const [paymentType, setPaymentType] = useState<"Full" | "Part">("Full");
-  const [paidAmount, setPaidAmount] = useState(0);
-
-  const storage = getStorage();
-
-  const addInvoiceItem = () =>
-    setItems([...items, { description: "", quantity: 1, rate: 0, amount: 0 }]);
-
-  const updateItem = (i: number, key: keyof InvoiceItem, val: any) => {
-    const newItems = [...items];
-    if (key === "description") {
-      newItems[i][key] = val as InvoiceItem["description"];
-    } else {
-      newItems[i][key] = Number(val) as InvoiceItem[
-        | "quantity"
-        | "rate"
-        | "amount"];
-    }
-    // Auto-calculate amount
-    newItems[i].amount = newItems[i].quantity * newItems[i].rate;
-    setItems(newItems);
-  };
-
-  const generateAndUploadInvoice = async () => {
-    if (!dueDate || !clientName || !clientEmail || !clientContact || !company) {
-      alert("Please fill all required fields.");
-      return;
-    }
-    setLoading(true);
-    const total = items.reduce((acc, i) => acc + i.amount, 0);
-    const invoiceNumber = `INV-${Date.now()}`;
-    const issuedAt = serverTimestamp();
-    const dueDateTimestamp = Timestamp.fromDate(new Date(dueDate));
-
-    const invoiceData: InvoiceData = {
-      clientId: String(clientId),
-      invoiceNumber,
-      issuedAt: Timestamp.now(),
-      dueDate: dueDateTimestamp,
-      items,
-      total,
-      paymentType,
-      paidAmount,
-      company,
-      clientName,
-      clientEmail,
-      clientContact,
-      pdfUrl: "",
-    };
-
-    // Generate PDF
-    const pdfBlob = generateInvoicePDF(invoiceData);
-
-    // Upload PDF to Firebase Storage
-    const storageRef = ref(
-      storage,
-      `invoices/${user.uid}/${clientId}/${invoiceNumber}.pdf`
-    );
-    await uploadBytes(storageRef, pdfBlob);
-    const pdfUrl = await getDownloadURL(storageRef);
-
-    // Save invoice to Firestore
-    await addDoc(
-      collection(
-        db,
-        "users",
-        user.uid,
-        "clients",
-        String(clientId),
-        "invoices"
-      ),
-      {
-        ...invoiceData,
-        pdfUrl,
-        issuedAt: serverTimestamp(),
-      }
-    );
-
-    setItems([{ description: "", quantity: 1, rate: 0, amount: 0 }]);
-    setDueDate("");
-    setCompany("");
-    setClientName("");
-    setClientEmail("");
-    setClientContact("");
-    setPaymentType("Full");
-    setPaidAmount(0);
-    setLoading(false);
-    fetchInvoices();
-  };
-
-  const fetchInvoices = async () => {
-    const snapshot = await getDocs(
-      collection(db, "users", user.uid, "clients", String(clientId), "invoices")
-    );
-    setInvoices(
-      snapshot.docs.map((doc) => ({
-        ...(doc.data() as Omit<InvoiceData, "id">),
-        id: doc.id,
-      }))
-    );
-  };
+  const [error, setError] = useState<string | null>(null);
+  const [previewURL, setPreviewURL] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchInvoices();
-    // eslint-disable-next-line
-  }, []);
+    localStorage.setItem("invoice-data", JSON.stringify(invoice));
+  }, [invoice]);
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked, files } = e.target;
+    if (name === "logo" && files?.[0]) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setInvoice((prev) => ({ ...prev, logo: reader.result as string }));
+      };
+      reader.readAsDataURL(files[0]);
+      return;
+    }
+
+    setInvoice((prev) => ({
+      ...prev,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : ["tax", "discount", "partPayment"].includes(name)
+          ? parseFloat(value) || 0
+          : value,
+    }));
+  };
+
+  const updateItem = (
+    index: number,
+    field: keyof InvoiceItem,
+    value: string | number
+  ) => {
+    const updated = [...invoice.items];
+    updated[index] = {
+      ...updated[index],
+      [field]: field === "description" ? String(value) : Number(value),
+    };
+    setInvoice({ ...invoice, items: updated });
+  };
+
+  const addItem = () => {
+    setInvoice({
+      ...invoice,
+      items: [...invoice.items, { description: "", quantity: 1, rate: 0 }],
+    });
+  };
+
+  const removeItem = (index: number) => {
+    const updated = invoice.items.filter((_, i) => i !== index);
+    setInvoice({ ...invoice, items: updated });
+  };
+
+  const calculateTotal = (): number => {
+    const subtotal = invoice.items.reduce(
+      (acc, item) => acc + item.quantity * item.rate,
+      0
+    );
+    return subtotal + invoice.tax - invoice.discount;
+  };
+
+  const isFormValid = () => {
+    return (
+      invoice.clientName.trim() !== "" &&
+      invoice.clientEmail.trim() !== "" &&
+      invoice.clientAddress.trim() !== "" &&
+      invoice.items.every((i) => i.description.trim() !== "")
+    );
+  };
+
+  const downloadPDF = () => {
+    if (!isFormValid()) {
+      setError("Please complete all required fields before downloading.");
+      return;
+    }
+
+    const doc = new jsPDF();
+
+    if (invoice.logo) {
+      doc.addImage(invoice.logo, "JPEG", 150, 10, 40, 20);
+    }
+
+    doc.setFontSize(18).text("INVOICE", 14, 20);
+    doc
+      .setFontSize(12)
+      .text(`Client: ${invoice.clientName}`, 14, 30)
+      .text(`Email: ${invoice.clientEmail}`, 14, 36)
+      .text(`Address: ${invoice.clientAddress}`, 14, 42)
+      .text(`Date: ${invoice.date}`, 14, 48);
+
+    autoTable(doc, {
+      startY: 54,
+      head: [["Description", "Quantity", "Rate", "Amount"]],
+      body: invoice.items.map((item) => [
+        item.description,
+        item.quantity.toString(),
+        item.rate.toFixed(2),
+        (item.quantity * item.rate).toFixed(2),
+      ]),
+      theme: "striped",
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || 70;
+    doc
+      .text(
+        `Subtotal: $${invoice.items
+          .reduce((s, i) => s + i.quantity * i.rate, 0)
+          .toFixed(2)}`,
+        14,
+        finalY + 10
+      )
+      .text(`Tax: $${invoice.tax.toFixed(2)}`, 14, finalY + 16)
+      .text(`Discount: $${invoice.discount.toFixed(2)}`, 14, finalY + 22)
+      .text(`Total: $${calculateTotal().toFixed(2)}`, 14, finalY + 28);
+
+    const blob = doc.output("bloburl");
+    setPreviewURL(blob);
+    doc.save(`Invoice-${invoice.clientName}.pdf`);
+    setToast("Invoice downloaded successfully!");
+    setTimeout(() => setToast(null), 3000);
+
+    const history = JSON.parse(localStorage.getItem("invoice-history") || "[]");
+    history.push(invoice);
+    localStorage.setItem("invoice-history", JSON.stringify(history));
+  };
+
+  const shareViaEmail = () => {
+    const subject = encodeURIComponent(`Invoice for ${invoice.clientName}`);
+    const body = encodeURIComponent(
+      `Please find attached the invoice dated ${
+        invoice.date
+      }.\nTotal: $${calculateTotal().toFixed(2)}`
+    );
+    window.open(
+      `mailto:${invoice.clientEmail}?subject=${subject}&body=${body}`
+    );
+  };
+
+  const shareViaWhatsApp = () => {
+    const text = `Invoice for ${
+      invoice.clientName
+    } - Total: $${calculateTotal().toFixed(2)}\nSent on: ${invoice.date}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
 
   return (
-    <div className="max-w-2xl mx-auto mt-10 space-y-6">
-      <h2 className="text-2xl font-bold text-blue-700 mb-4 flex items-center gap-2">
-        <FaFilePdf className="text-red-600" /> Generate Invoice Receipt
-      </h2>
-      <div className="bg-white rounded-xl shadow p-6 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <input
-            className="border p-2 rounded"
-            placeholder="Company Name"
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            required
-          />
-          <input
-            className="border p-2 rounded"
-            placeholder="Client Name"
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
-            required
-          />
-          <input
-            className="border p-2 rounded"
-            type="email"
-            placeholder="Client Email"
-            value={clientEmail}
-            onChange={(e) => setClientEmail(e.target.value)}
-            required
-          />
-          <input
-            className="border p-2 rounded"
-            placeholder="Contact Number"
-            value={clientContact}
-            onChange={(e) => setClientContact(e.target.value)}
-            required
-          />
+    <div className="p-6 max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold mb-4">Create Invoice</h2>
+
+      {error && (
+        <div className="mb-4 text-red-600 flex items-center gap-2">
+          <FaExclamationCircle /> {error}
         </div>
-        <div className="mt-4">
-          <label className="block font-medium mb-1">Invoice Items</label>
-          {items.map((item, i) => (
-            <div key={i} className="grid grid-cols-4 gap-2 mb-2">
-              <input
-                className="border p-2 rounded"
-                placeholder="Description"
-                value={item.description}
-                onChange={(e) => updateItem(i, "description", e.target.value)}
-              />
-              <input
-                className="border p-2 rounded"
-                type="number"
-                placeholder="Qty"
-                value={item.quantity}
-                min={1}
-                onChange={(e) => updateItem(i, "quantity", e.target.value)}
-              />
-              <input
-                className="border p-2 rounded"
-                type="number"
-                placeholder="Rate"
-                value={item.rate}
-                min={0}
-                onChange={(e) => updateItem(i, "rate", e.target.value)}
-              />
-              <input
-                className="border p-2 rounded bg-gray-50"
-                type="number"
-                placeholder="Amount"
-                value={item.amount}
-                readOnly
-                tabIndex={-1}
-              />
-            </div>
-          ))}
-          <button
-            onClick={addInvoiceItem}
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-semibold mt-2"
-          >
-            <FaPlus /> Add Item
-          </button>
+      )}
+      {toast && (
+        <div className="mb-4 text-green-600 flex items-center gap-2">
+          <FaCheckCircle /> {toast}
         </div>
-        <label htmlFor="due-date" className="block font-medium mt-4 mb-1">
-          Due Date
-        </label>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <input
-          id="due-date"
-          type="date"
-          className="border p-2 rounded w-full"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          title="Select due date"
-          placeholder="Select due date"
+          name="clientName"
+          placeholder="Client Name"
+          value={invoice.clientName}
+          onChange={handleChange}
+          className="border p-2 rounded"
         />
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          <div>
-            <label htmlFor="payment-type" className="block font-medium mb-1">Payment Type</label>
-            <select
-              id="payment-type"
-              className="border p-2 rounded w-full"
-              value={paymentType}
-              onChange={(e) =>
-                setPaymentType(e.target.value as "Full" | "Part")
-              }
-              title="Select payment type"
-            >
-              <option value="Full">Full Payment</option>
-              <option value="Part">Part Payment</option>
-            </select>
-          </div>
-          <div>
-            <label className="block font-medium mb-1">Paid Amount</label>
+        <input
+          type="email"
+          name="clientEmail"
+          placeholder="Client Email"
+          value={invoice.clientEmail}
+          onChange={handleChange}
+          className="border p-2 rounded"
+        />
+        <input
+          name="clientAddress"
+          placeholder="Client Address"
+          value={invoice.clientAddress}
+          onChange={handleChange}
+          className="border p-2 rounded"
+        />
+        <input
+        placeholder="Invoice Date"
+          type="date"
+          name="date"
+          value={invoice.date}
+          onChange={handleChange}
+          className="border p-2 rounded"
+        />
+        <input
+          placeholder="Upload Logo"
+          type="file"
+          accept="image/*"
+          name="logo"
+          onChange={handleChange}
+          className="border p-2 rounded"
+        />
+      </div>
+
+      <div className="mb-4">
+        <h3 className="font-semibold mb-2">Invoice Items</h3>
+        {invoice.items.map((item, idx) => (
+          <div key={idx} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-2">
             <input
-              className="border p-2 rounded w-full"
-              type="number"
-              min={0}
-              value={paidAmount}
-              onChange={(e) => setPaidAmount(Number(e.target.value))}
-              placeholder="Amount Paid"
+              value={item.description}
+              onChange={(e) => updateItem(idx, "description", e.target.value)}
+              placeholder="Description"
+              className="border p-2 rounded"
             />
+            <input
+              type="number"
+              value={item.quantity}
+              onChange={(e) =>
+                updateItem(idx, "quantity", Number(e.target.value))
+              }
+              placeholder="Qty"
+              className="border p-2 rounded"
+            />
+            <input
+              type="number"
+              value={item.rate}
+              onChange={(e) => updateItem(idx, "rate", Number(e.target.value))}
+              placeholder="Rate"
+              className="border p-2 rounded"
+            />
+            <button
+              title="Remove Item"
+              onClick={() => removeItem(idx)}
+              className="bg-red-100 text-red-700 rounded p-2 hover:bg-red-200"
+            >
+              <FaTrash />
+            </button>
           </div>
-        </div>
-        <div className="mt-4 font-bold text-lg text-blue-700">
-          Total: ${items.reduce((acc, i) => acc + i.amount, 0)}
-        </div>
+        ))}
         <button
-          className={`bg-green-600 text-white p-2 w-full rounded font-bold mt-4 flex items-center justify-center gap-2 transition ${
-            loading ? "opacity-60 cursor-not-allowed" : "hover:bg-green-700"
-          }`}
-          onClick={generateAndUploadInvoice}
-          disabled={loading}
+          onClick={addItem}
+          className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700"
         >
-          <FaFilePdf /> {loading ? "Generating..." : "Generate PDF Receipt"}
+          <FaPlus /> Add Item
         </button>
       </div>
 
-      <h3 className="text-lg font-semibold mt-8 mb-2">Past Invoices</h3>
-      <div className="bg-white rounded-xl shadow p-4">
-        {invoices.length === 0 ? (
-          <div className="text-gray-400 text-center py-8">
-            No invoices generated yet.
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {invoices.map((inv) => (
-              <li
-                key={inv.invoiceNumber}
-                className="border p-2 flex justify-between items-center rounded"
-              >
-                <div>
-                  <span className="font-semibold text-blue-700">
-                    {inv.invoiceNumber}
-                  </span>
-                  <span className="ml-2 text-gray-500">
-                    {inv.issuedAt instanceof Timestamp
-                      ? inv.issuedAt.toDate().toLocaleDateString()
-                      : ""}
-                  </span>
-                  <span className="ml-2 text-gray-500">
-                    {inv.clientName} ({inv.company})
-                  </span>
-                </div>
-                <a
-                  href={inv.pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-red-600 underline flex items-center gap-1"
-                >
-                  <FaFilePdf /> View PDF
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        <input
+          type="number"
+          name="tax"
+          value={invoice.tax}
+          onChange={handleChange}
+          className="border p-2 rounded"
+          placeholder="Tax"
+        />
+        <input
+          type="number"
+          name="discount"
+          value={invoice.discount}
+          onChange={handleChange}
+          className="border p-2 rounded"
+          placeholder="Discount"
+        />
+        <input
+          type="number"
+          name="partPayment"
+          value={invoice.partPayment}
+          onChange={handleChange}
+          className="border p-2 rounded"
+          placeholder="Part Payment"
+        />
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            name="completePayment"
+            checked={invoice.completePayment}
+            onChange={handleChange}
+          />
+          Complete Payment
+        </label>
       </div>
+
+      <div className="flex justify-between items-center mb-4">
+        <p className="font-semibold text-lg">
+          Total: ${calculateTotal().toFixed(2)}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={downloadPDF}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2"
+          >
+            <FaFileDownload /> Download PDF
+          </button>
+          <button
+            onClick={shareViaEmail}
+            className="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
+          >
+            <FaEnvelope /> Email
+          </button>
+          <button
+            onClick={shareViaWhatsApp}
+            className="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 flex items-center gap-2"
+          >
+            <FaWhatsapp /> WhatsApp
+          </button>
+        </div>
+      </div>
+
+      {previewURL && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded shadow-xl max-w-3xl w-full relative">
+            <h3 className="font-semibold mb-4 flex items-center gap-2 text-lg">
+              <FaEye /> Invoice Preview
+            </h3>
+            <iframe
+              src={previewURL}
+              className="w-full h-[500px] border rounded"
+              title="Invoice Preview"
+            />
+            <button
+              onClick={() => setPreviewURL(null)}
+              className="absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-800 px-2 py-1 rounded"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

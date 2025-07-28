@@ -8,7 +8,7 @@ import {
   FaShareAlt,
   FaFileAlt,
   FaArrowLeft,
-  FaRegCopy,
+  // FaRegCopy,
 } from "react-icons/fa";
 
 export default function DocumentPage() {

@@ -22,3 +22,22 @@ export interface User {
   animationDelay?: number;
   isDarkMode?: boolean; // dark mode
 }
+
+type Booking = {
+  id: string;
+  clientName: string;
+  date: string;
+  [key: string]: any;
+};
+
+// Replace `useState<any[]>` with:
+// const [bookings, setBookings] = useState<Booking[]>([]);
+export interface Client {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  image?: string;
+  company?: string; // company name
+  bookings?: Booking[];
+}

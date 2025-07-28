@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+const [bookings, setBookings] = useState<Booking[]>([]); // Replace `any[]` with `Booking[]`
 
 interface BookingData {
   name: string;
@@ -8,6 +9,27 @@ interface BookingData {
   date: string;
   message: string;
 }
+
+type Booking = {
+  id: string;
+  clientName: string;
+  date: string;
+  [key: string]: any;
+};
+
+// Replace `useState<any[]>` with:
+// const clientFeatures = [
+//   {
+//     title: "Booking",
+//     icon: <FaCalendarAlt />,
+//     desc: "Schedule appointments with freelancers.",
+//   },
+//   {
+//     title: "Chat",
+//     icon: <FaComments />,
+//     desc: "Communicate instantly with freelancers.",
+//   },
+// ];
 
 export default function BookingForm({
   onSubmit,
@@ -31,6 +53,7 @@ export default function BookingForm({
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
+  
 
   useEffect(() => {
     const timeout = setTimeout(() => {

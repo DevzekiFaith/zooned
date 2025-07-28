@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import AIAssistant from "@/components/AIAssistant/AIAssistant";
-import BookingForm from "@/components/BookingForm/BookingForm";
+// import Link from "next/link";
+// import AIAssistant from "@/components/AIAssistant/AIAssistant";
+// import BookingForm from "@/components/BookingForm/BookingForm";
 import {
   FaUserEdit,
   FaFileInvoiceDollar,
@@ -14,12 +14,12 @@ import {
   FaChartBar,
   FaUsers,
   FaComments,
-  FaExchangeAlt,
-  FaUserCircle,
-  FaEdit,
-  FaUpload,
-  FaSignOutAlt,
-  FaTrash,
+  // FaExchangeAlt,
+  // FaUserCircle,
+  // FaEdit,
+  // FaUpload,
+  // FaSignOutAlt,
+  // FaTrash,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";

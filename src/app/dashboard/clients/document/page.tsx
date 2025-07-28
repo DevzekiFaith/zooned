@@ -1,4 +1,3 @@
-// pages/dashboard/clients/documents.tsx
 "use client";
 
 import { useRef, useState } from "react";
@@ -9,11 +8,13 @@ import {
   FaShareAlt,
   FaFileAlt,
   FaArrowLeft,
+  FaRegCopy,
 } from "react-icons/fa";
 
 export default function DocumentPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [copiedFile, setCopiedFile] = useState<string | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -33,13 +34,14 @@ export default function DocumentPage() {
   };
 
   const handleShare = (file: File) => {
-    alert(
-      `Pretend this link is shareable: https://yourapp.com/shared/${file.name}`
-    );
+    const link = `https://yourapp.com/shared/${file.name}`;
+    navigator.clipboard.writeText(link);
+    setCopiedFile(file.name);
+    setTimeout(() => setCopiedFile(null), 2000);
   };
 
   return (
-    <div className="min-h-screen p-6 bg-gradient-to-br from-blue-100 via-white to-purple-100">
+    <div className="min-h-screen p-6 bg-gradient-to-br from-blue-100 via-white to-purple-100 animate-fade-in">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-10">
           <h1 className="text-4xl font-extrabold text-blue-900">
@@ -56,16 +58,16 @@ export default function DocumentPage() {
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
             <input
+            placeholder="Upload files here"
               ref={fileInputRef}
               type="file"
               className="hidden"
               onChange={handleFileUpload}
-              placeholder="files"
               multiple
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3 rounded-full font-semibold flex items-center gap-2 shadow-lg"
+              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3 rounded-full font-semibold flex items-center gap-2 shadow-lg transform transition-transform hover:scale-105"
             >
               <FaUpload /> Upload New Files
             </button>
@@ -87,7 +89,7 @@ export default function DocumentPage() {
               {uploadedFiles.map((file, index) => (
                 <div
                   key={index}
-                  className="border border-gray-100 p-5 rounded-2xl bg-white shadow-md hover:shadow-lg transition duration-200 flex flex-col gap-3"
+                  className="border border-gray-100 p-5 rounded-2xl bg-white shadow-md hover:shadow-lg transition duration-200 flex flex-col gap-3 transform hover:scale-[1.02]"
                 >
                   <div className="flex items-center gap-3">
                     <FaFileAlt className="text-blue-500 text-2xl" />
@@ -111,7 +113,8 @@ export default function DocumentPage() {
                       onClick={() => handleShare(file)}
                       className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-1.5 rounded-md font-medium"
                     >
-                      <FaShareAlt className="inline mr-1" /> Share
+                      <FaShareAlt className="inline mr-1" />
+                      {copiedFile === file.name ? "Copied!" : "Share"}
                     </button>
                   </div>
                 </div>
@@ -120,6 +123,21 @@ export default function DocumentPage() {
           )}
         </div>
       </div>
+      <style jsx global>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(32px);
+          }
+          to {
+            opacity: 1;
+            transform: none;
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.6s ease-out both;
+        }
+      `}</style>
     </div>
   );
 }

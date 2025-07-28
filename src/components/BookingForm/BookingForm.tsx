@@ -1,90 +1,144 @@
-import { useState } from "react";
+"use client";
 
-interface BookingFormProps {
-  initialData?: {
-    title?: string;
-    date?: string;
-    time?: string;
-    notes?: string;
-  };
-  onSubmit: (data: { title: string; date: string; time: string; notes: string }) => void;
-  loading?: boolean;
+import { useEffect, useState } from "react";
+
+interface BookingData {
+  name: string;
+  email: string;
+  date: string;
+  message: string;
 }
 
-export default function BookingForm({ initialData = {}, onSubmit, loading }: BookingFormProps) {
-  const [form, setForm] = useState({
-    title: initialData.title || "",
-    date: initialData.date || "",
-    time: initialData.time || "",
-    notes: initialData.notes || "",
+export default function BookingForm({
+  onSubmit,
+}: {
+  onSubmit?: (data: BookingData) => void;
+}) {
+  const [form, setForm] = useState<BookingData>({
+    name: "",
+    email: "",
+    date: "",
+    message: "",
   });
+  const [toast, setToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [debouncedEmail, setDebouncedEmail] = useState(form.email);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedEmail(form.email);
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [form.email]);
+
+  const validateEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(form);
+    if (!form.name || !form.email || !form.date) {
+      setError("Please fill all required fields.");
+      return;
+    }
+    if (!validateEmail(debouncedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    setTimeout(() => {
+      if (onSubmit) onSubmit(form);
+      setToast("Booking submitted successfully!");
+      setTimeout(() => setToast(null), 3000);
+      setForm({ name: "", email: "", date: "", message: "" });
+      setLoading(false);
+    }, 1000);
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white rounded-xl shadow p-6 max-w-md mx-auto flex flex-col gap-4"
-    >
-      <h2 className="text-xl font-bold mb-2">{initialData.title ? "Edit Booking" : "New Booking"}</h2>
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">Title</span>
-        <input
-          type="text"
-          name="title"
-          value={form.title}
-          onChange={handleChange}
-          required
-          className="border rounded px-3 py-2"
-          placeholder="Meeting with client"
-        />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">Date</span>
-        <input
-          type="date"
-          name="date"
-          value={form.date}
-          onChange={handleChange}
-          required
-          className="border rounded px-3 py-2"
-        />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">Time</span>
-        <input
-          type="time"
-          name="time"
-          value={form.time}
-          onChange={handleChange}
-          required
-          className="border rounded px-3 py-2"
-        />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">Notes</span>
-        <textarea
-          name="notes"
-          value={form.notes}
-          onChange={handleChange}
-          className="border rounded px-3 py-2"
-          placeholder="Additional notes (optional)"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={loading}
-        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded transition mt-2"
-      >
-        {loading ? "Saving..." : initialData.title ? "Update Booking" : "Create Booking"}
-      </button>
-        </form>
-      );
-    }
+    <div className="bg-white shadow-md rounded-lg p-6">
+      {toast && (
+        <div className="mb-4 bg-green-100 border border-green-200 text-green-800 px-4 py-2 rounded">
+          {toast}
+        </div>
+      )}
+      {error && (
+        <div className="mb-4 bg-red-100 border border-red-200 text-red-800 px-4 py-2 rounded">
+          {error}
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <label className="block font-medium mb-1">Full Name</label>
+            <input
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              required
+              className="w-full border rounded px-3 py-2"
+              placeholder="John Doe"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block font-medium mb-1">Email</label>
+            <input
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              required
+              className="w-full border rounded px-3 py-2"
+              placeholder="you@email.com"
+            />
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <label className="block font-medium mb-1">Date</label>
+            <input
+            placeholder="Select date"
+              type="date"
+              name="date"
+              value={form.date}
+              onChange={handleChange}
+              required
+              className="w-full border rounded px-3 py-2"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block font-medium mb-1">Message</label>
+            <textarea
+              name="message"
+              value={form.message}
+              onChange={handleChange}
+              rows={3}
+              className="w-full border rounded px-3 py-2"
+              placeholder="Let us know your needs"
+            />
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className={`w-full px-4 py-2 rounded text-white ${
+            loading
+              ? "bg-blue-300 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
+        >
+          {loading ? "Booking..." : "Book Now"}
+        </button>
+      </form>
+    </div>
+  );
+}

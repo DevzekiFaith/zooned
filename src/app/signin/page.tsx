@@ -2,14 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  updateProfile,
+  sendPasswordResetEmail,
+} from "firebase/auth";
 import { auth, db, storage } from "@/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
 import { toast } from "react-hot-toast";
 
-export default function SignupPage() {
+export default function SigninPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -88,6 +92,17 @@ export default function SignupPage() {
       showToast(err.message || "Signup failed", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) return showToast("Enter your email to reset password", "error");
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showToast("Password reset email sent", "success");
+    } catch (err: any) {
+      console.error(err);
+      showToast("Failed to send reset email", "error");
     }
   };
 
@@ -199,6 +214,14 @@ export default function SignupPage() {
           <a href="/login" className="text-blue-600 underline">
             Login
           </a>
+        </p>
+        <p className="text-sm text-center">
+          <button
+            onClick={handleResetPassword}
+            className="text-blue-600 underline"
+          >
+            Forgot Password?
+          </button>
         </p>
       </div>
     </div>

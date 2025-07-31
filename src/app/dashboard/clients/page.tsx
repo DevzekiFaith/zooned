@@ -1,100 +1,104 @@
-'use client'
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { auth, db } from "../../../firebase";
-import { doc, getDoc } from "firebase/firestore";
-import Link from "next/link";
+"use client";
 
-export default function ClientDetailPage() {
-  const { clientId } = useParams();
-  const [client, setClient] = useState<any>(null);
-  const user = auth.currentUser!;
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  FaPlus,
+  FaCalendarAlt,
+  FaUsers,
+} from "react-icons/fa";
+import { auth, db } from "@/firebase";
+import { collection, getDocs } from "firebase/firestore";
+
+export default function ClientsPage() {
+  const router = useRouter();
+  const [clients, setClients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchClient = async () => {
-      const docRef = doc(db, "users", user.uid, "clients", String(clientId));
-      const docSnap = await getDoc(docRef);
-      setClient(docSnap.data());
-    };
-    fetchClient();
-  }, []);
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+      try {
+        const snap = await getDocs(collection(db, "users", user.uid, "clients"));
+        const fetchedClients = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setClients(fetchedClients);
+      } catch (e) {
+        console.error("Failed to fetch clients", e);
+      } finally {
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
 
-  if (!client) return <p className="p-4">Loading...</p>;
-
-  const whatsappUrl = `https://wa.me/${client.whatsapp}?text=${encodeURIComponent(
-    `Hi ${client.name}, this is a message regarding your onboarding.`
-  )}`;
+  const items = [
+    {
+      title: "Add New Client",
+      icon: <FaUsers className="text-3xl text-blue-600" />,
+      description: "Create and manage client profiles easily.",
+      href: "/dashboard/clients/new",
+    },
+    {
+      title: "Booking Page",
+      icon: <FaCalendarAlt className="text-3xl text-blue-600 animate-bounce" />,
+      description: "Schedule appointments and track availability.",
+      href: "/dashboard/clients/booking",
+    },
+    {
+      title: "Meeting Calendar",
+      icon: <FaCalendarAlt className="text-3xl text-blue-600 animate-pulse" />,
+      description: "View upcoming meetings and availability.",
+      href: "/dashboard/clients/meeting-calendar",
+    },
+  ];
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-8">
-      {/* Profile Card */}
-      <div className="flex items-center gap-6 bg-white rounded-xl shadow p-6">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-3xl text-white font-bold">
-          {client.name?.[0] || "?"}
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold">{client.name}</h2>
-          <p className="text-gray-600">{client.email}</p>
-          <p className="text-gray-600">{client.phone}</p>
-          <div className="flex gap-3 mt-2">
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded transition"
-            >
-              <span>💬</span> WhatsApp
-            </a>
-            <a
-              href={`mailto:${client.email}`}
-              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded transition"
-            >
-              <span>✉️</span> Email
-            </a>
-          </div>
-        </div>
+    <div className="min-h-screen py-12 px-6 bg-gradient-to-br from-blue-50 via-white to-purple-100">
+      <h1 className="text-3xl font-bold text-center text-blue-700 mb-10">Client Dashboard</h1>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        {items.map((item, index) => (
+          <motion.div
+            key={item.title}
+            whileHover={{ scale: 1.05 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1, duration: 0.4 }}
+            onClick={() => router.push(item.href)}
+            className="cursor-pointer p-6 bg-white rounded-lg shadow hover:shadow-lg transition-all border border-gray-100 relative group"
+          >
+            <div className="mb-4 flex items-center justify-center">
+              <div className="relative">
+                {item.icon}
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-xs text-white bg-gray-700 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none z-10 whitespace-nowrap">
+                  {item.description}
+                </div>
+              </div>
+            </div>
+            <h2 className="text-xl font-semibold text-blue-700 text-center mb-2">
+              {item.title}
+            </h2>
+            <p className="text-sm text-gray-600 text-center">{item.description}</p>
+          </motion.div>
+        ))}
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-4 justify-center">
-        <Link
-          href={`documents`}
-          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded font-semibold transition"
-        >
-          📁 Documents
-        </Link>
-        <Link
-          href={`booking`}
-          className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded font-semibold transition"
-        >
-          📅 Bookings
-        </Link>
-        <Link
-          href={`invoice`}
-          className="bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded font-semibold transition"
-        >
-          💸 Invoices
-        </Link>
-      </div>
-
-      {/* Client Details Section */}
-      <div className="bg-white rounded-xl shadow p-6">
-        <h3 className="text-lg font-bold mb-2">Client Details</h3>
-        <ul className="text-gray-700 space-y-1">
-          <li>
-            <span className="font-semibold">Name:</span> {client.name}
-          </li>
-          <li>
-            <span className="font-semibold">Email:</span> {client.email}
-          </li>
-          <li>
-            <span className="font-semibold">Phone:</span> {client.phone}
-          </li>
-          <li>
-            <span className="font-semibold">WhatsApp:</span> {client.whatsapp}
-          </li>
-        </ul>
-      </div>
+      {!loading && clients.length > 0 && (
+        <div className="mt-12 max-w-4xl mx-auto">
+          <h2 className="text-xl font-semibold mb-4 text-blue-700">Your Clients</h2>
+          <ul className="space-y-3">
+            {clients.map((client) => (
+              <li key={client.id} className="p-4 bg-white rounded shadow text-sm border border-gray-100">
+                <p className="font-semibold text-blue-600">{client.name || "Unnamed Client"}</p>
+                <p className="text-gray-500">{client.email || "No email provided"}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ export interface TempUser {
   email: string;
   password: string;
   name?: string;
-  role: "client";
+  role: "client"| "freelancer";
   phone?: string;
   image ?: string;
   company?: string; // company name

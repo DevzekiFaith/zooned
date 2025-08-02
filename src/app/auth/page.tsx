@@ -1,111 +1,114 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { auth, db } from "@/firebase";
 import {
+  onAuthStateChanged,
   createUserWithEmailAndPassword,
-  updateProfile,
-  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
+  sendPasswordResetEmail,
   GoogleAuthProvider,
 } from "firebase/auth";
-import { auth, db, storage } from "@/firebase";
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
-import { toast } from "react-hot-toast";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { motion } from "framer-motion";
+import { FaSun, FaMoon, FaUserCircle } from "react-icons/fa";
 
 export default function AuthPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"signup" | "login">("signup");
+  const searchParams = useSearchParams();
+  const [darkMode, setDarkMode] = useState(false);
+  const [userRole, setUserRole] = useState<"client" | "freelancer">("client");
+  const [authenticated, setAuthenticated] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [name, setName] = useState("");
-  const [role, setRole] = useState<"client" | "freelancer">("client");
-  const [avatar, setAvatar] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [userInfo, setUserInfo] = useState<{ name: string; image?: string } | null>(null);
 
-  const isValidEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const isStrongPassword = (password: string): boolean => password.length >= 8 && /\d/.test(password) && /[A-Z]/.test(password);
-
-  const handleSignup = async () => {
-    if (!email || !password || !confirmPassword || !name)
-      return toast.error("Please fill all fields");
-    if (!isValidEmail(email)) return toast.error("Invalid email format");
-    if (!isStrongPassword(password)) return toast.error("Weak password");
-    if (password !== confirmPassword) return toast.error("Passwords do not match");
-
-    setLoading(true);
-    try {
-      const userCred = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCred.user;
-
-      let photoURL = "";
-      if (avatar) {
-        const storageRef = ref(storage, `avatars/${user.uid}`);
-        await uploadBytes(storageRef, avatar);
-        photoURL = await getDownloadURL(storageRef);
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setAuthenticated(true);
+        const snap = await getDoc(doc(db, "users", user.uid));
+        const data = snap.data();
+        setUserInfo({
+          name: data?.name || user.displayName || "User",
+          image: data?.image || user.photoURL || "",
+        });
+      } else {
+        setAuthenticated(false);
+        setUserInfo(null);
       }
+      setAuthChecked(true);
+    });
+    return () => unsub();
+  }, []);
 
-      await updateProfile(user, { displayName: name, photoURL });
-      await setDoc(doc(db, "users", user.uid), {
-        email: user.email,
-        name,
-        role,
-        image: photoURL,
+  useEffect(() => {
+    const roleParam = searchParams.get("role");
+    if (roleParam === "client" || roleParam === "freelancer") {
+      setUserRole(roleParam);
+    }
+  }, [searchParams]);
+
+  const handleSubscribe = async () => {
+    if (!email || !email.includes("@")) return;
+    try {
+      await addDoc(collection(db, "newsletter_subscribers"), {
+        email,
+        subscribedAt: serverTimestamp(),
       });
-
-      toast.success("Signup successful! Redirecting...");
-      setTimeout(() => router.push(role === "freelancer" ? "/dashboard/freelancers" : "/dashboard/clients"), 1000);
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Signup failed");
-    } finally {
-      setLoading(false);
+      setSubscribed(true);
+    } catch (err) {
+      console.error("Subscription failed", err);
     }
   };
 
-  const handleLogin = async () => {
-    if (!email || !password) return toast.error("Enter email and password");
-    setLoading(true);
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    if (!email || !password) return setErrorMsg("Please enter both email and password.");
     try {
-      const res = await signInWithEmailAndPassword(auth, email, password);
-      const snap = await getDoc(doc(db, "users", res.user.uid));
-      const user = snap.data();
-      router.push(user?.role === "freelancer" ? "/dashboard/freelancers" : "/dashboard/clients");
+      if (isLoginMode) {
+        const loginRes = await signInWithEmailAndPassword(auth, email, password);
+        const userSnap = await getDoc(doc(db, "users", loginRes.user.uid));
+        const role = userSnap.data()?.role || "client";
+        router.push(`/dashboard/${role}`);
+      } else {
+        const signupRes = await createUserWithEmailAndPassword(auth, email, password);
+        await setDoc(doc(db, "users", signupRes.user.uid), {
+          email,
+          role: userRole,
+          createdAt: serverTimestamp(),
+        });
+        router.push(`/dashboard/${userRole}`);
+      }
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Login failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResetPassword = async () => {
-    if (!email) return toast.error("Enter your email");
-    try {
-      await sendPasswordResetEmail(auth, email);
-      toast.success("Password reset sent");
-    } catch (err: any) {
-      console.error(err);
-      toast.error("Reset failed");
+      setErrorMsg(err.message || "Authentication failed");
     }
   };
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
-    setLoading(true);
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-
       const docRef = doc(db, "users", user.uid);
       const snap = await getDoc(docRef);
-
       if (!snap.exists()) {
         await setDoc(docRef, {
           email: user.email,
@@ -113,85 +116,153 @@ export default function AuthPage() {
           image: user.photoURL,
           role: "client",
         });
+        router.push("/dashboard/client");
+      } else {
+        const role = snap.data()?.role || "client";
+        router.push(`/dashboard/${role}`);
       }
-
-      const role = snap.data()?.role || "client";
-      router.push(role === "freelancer" ? "/dashboard/freelancers" : "/dashboard/clients");
     } catch (err: any) {
       console.error(err);
-      toast.error("Google login failed");
-    } finally {
-      setLoading(false);
+      setErrorMsg("Google login failed");
     }
   };
 
+  const handleResetPassword = async () => {
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      setShowResetModal(false);
+      alert("Password reset link sent.");
+    } catch (err) {
+      console.error(err);
+      alert("Reset failed. Please try again.");
+    }
+  };
+
+  if (!authChecked) return null;
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 to-blue-50 px-4">
-      <div className="w-full max-w-md bg-white p-6 rounded-xl shadow-xl space-y-4 relative">
-        <h2 className="text-2xl font-bold text-center text-blue-700">
-          {mode === "signup" ? "Create Account" : "Sign In"}
-        </h2>
-
-        {mode === "signup" && (
-          <input type="text" className="w-full border p-2 rounded" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        )}
-
-        <input type="email" className="w-full border p-2 rounded" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-
-        <div className="relative">
-          <input type={showPassword ? "text" : "password"} className="w-full border p-2 rounded" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-2 text-gray-600" title="Toggle Password">
-            {showPassword ? <FaEyeSlash /> : <FaEye />}
+    <div className={`min-h-screen flex flex-col transition-colors duration-500 ${darkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"}`}>
+      <header className="w-full py-8 text-center relative">
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          {userInfo && (
+            <div className="flex items-center gap-2">
+              {userInfo.image ? (
+                <img src={userInfo.image} alt="User avatar" className="w-8 h-8 rounded-full" />
+              ) : (
+                <FaUserCircle className="w-6 h-6 text-purple-500" />
+              )}
+              <span className="text-sm font-medium">{userInfo.name}</span>
+            </div>
+          )}
+          <button onClick={() => setDarkMode(!darkMode)} title="Toggle Theme" className="text-xl">
+            {darkMode ? <FaSun /> : <FaMoon />}
           </button>
         </div>
+        <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-4xl sm:text-5xl font-extrabold text-purple-700 mb-2">
+          Welcome to Onboarding
+        </motion.h1>
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="text-lg max-w-xl mx-auto text-gray-600 dark:text-gray-300">
+          One platform to manage clients, collaborate, and grow your freelance business.
+        </motion.p>
 
-        {mode === "signup" && (
-          <>
-            <div className="relative">
-              <input type={showConfirmPassword ? "text" : "password"} className="w-full border p-2 rounded" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-2 top-2 text-gray-600" title="Toggle Password">
-                {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
-              </button>
-            </div>
-
-            <select title="Select Role" value={role} onChange={(e) => setRole(e.target.value as "client" | "freelancer")} className="w-full border p-2 rounded">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} className="mt-6 max-w-md mx-auto w-full">
+          <form onSubmit={handleAuthSubmit} className={`space-y-4 ${errorMsg ? "animate-shake" : ""}`}>
+            <select title="Role" value={userRole} onChange={(e) => setUserRole(e.target.value as "client" | "freelancer")} className="border border-purple-600 text-purple-700 rounded px-4 py-2 w-full">
               <option value="client">Client</option>
               <option value="freelancer">Freelancer</option>
             </select>
-
-            <input placeholder="Avatar" type="file" accept="image/*" onChange={(e) => setAvatar(e.target.files?.[0] || null)} className="w-full border p-2 rounded" />
-          </>
-        )}
-
-        <button onClick={mode === "signup" ? handleSignup : handleLogin} disabled={loading} className={`w-full py-2 rounded text-white font-semibold transition-all duration-200 ${loading ? "bg-blue-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"}`}>
-          {loading ? (mode === "signup" ? "Creating..." : "Logging in...") : mode === "signup" ? "Sign Up" : "Sign In"}
-        </button>
-
-        <button onClick={handleGoogleSignIn} className="w-full py-2 rounded bg-white text-gray-700 border border-gray-300 hover:bg-gray-100 flex justify-center gap-2 items-center">
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-          Continue with Google
-        </button>
-
-        {mode === "login" && (
-          <p className="text-sm text-center">
-            <button onClick={handleResetPassword} className="text-blue-600 underline">
-              Forgot Password?
+            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            {errorMsg && <p className="text-red-500 text-sm text-left">{errorMsg}</p>}
+            <div className="flex justify-end text-sm">
+              <button type="button" onClick={() => setShowResetModal(true)} className="text-purple-600 underline">
+                Forgot Password?
+              </button>
+            </div>
+            <div className="flex gap-4">
+              <button type="button" onClick={() => setIsLoginMode(true)} className={`w-1/2 py-2 rounded font-semibold ${isLoginMode ? "bg-purple-700 text-white" : "bg-gray-200 text-gray-700"}`}>
+                Sign In
+              </button>
+              <button type="button" onClick={() => setIsLoginMode(false)} className={`w-1/2 py-2 rounded font-semibold ${!isLoginMode ? "bg-purple-700 text-white" : "bg-gray-200 text-gray-700"}`}>
+                Sign Up
+              </button>
+            </div>
+            <button type="submit" className="bg-purple-600 w-full text-white px-6 py-2 rounded hover:bg-purple-700">
+              {isLoginMode ? "Sign In" : "Sign Up"}
             </button>
-          </p>
-        )}
+            <button type="button" onClick={handleGoogleSignIn} className="bg-white border w-full border-gray-300 mt-2 text-gray-800 px-6 py-2 rounded hover:bg-gray-100">
+              Continue with Google
+            </button>
+          </form>
+        </motion.div>
+      </header>
 
-        <p className="text-sm text-gray-600 text-center">
-          {mode === "signup" ? (
-            <>
-              Already have an account? <button onClick={() => setMode("login")} className="text-blue-600 underline">Sign in</button>
-            </>
-          ) : (
-            <>
-              New user? <button onClick={() => setMode("signup")} className="text-blue-600 underline">Create Account</button>
-            </>
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-96 shadow-xl">
+            <h2 className="text-lg font-semibold mb-4 text-purple-700">Reset Password</h2>
+            <input
+              type="email"
+              value={resetEmail}
+              onChange={(e) => setResetEmail(e.target.value)}
+              placeholder="Enter your email"
+              className="w-full border px-4 py-2 rounded mb-4 focus:outline-none"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="text-sm px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetPassword}
+                className="text-sm px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700"
+              >
+                Send Reset Link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <main className="flex-1 px-4 py-12 max-w-4xl mx-auto">
+        <section className="mb-20">
+          <h2 className="text-2xl font-bold text-center mb-8">What Our Users Say</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {["Alex", "Mia", "Chris"].map((user, idx) => (
+              <motion.div key={user} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.2 }} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                  {user === "Alex" && "This platform saved me hours every week managing client tasks."}
+                  {user === "Mia" && "Onboarding my clients has never been easier."}
+                  {user === "Chris" && "Calendar, video, invoices, and chat all in one place. Brilliant!"}
+                </p>
+                <p className="font-semibold text-purple-600 text-sm">— {user}</p>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-20">
+          <h2 className="text-2xl font-bold text-center mb-4">Join Our Newsletter</h2>
+          <p className="text-center text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Get updates on features, tips, and news!
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-xl mx-auto">
+            <input type="email" placeholder="Your email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full sm:w-auto flex-1 border px-4 py-2 rounded focus:outline-none" />
+            <button onClick={handleSubscribe} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded">
+              Subscribe
+            </button>
+          </div>
+          {subscribed && (
+            <p className="text-green-600 text-center mt-2 text-sm">Subscribed successfully!</p>
           )}
-        </p>
-      </div>
+        </section>
+      </main>
+
+      <footer className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+        © {new Date().getFullYear()} Onboarding. All rights reserved.
+      </footer>
     </div>
   );
 }

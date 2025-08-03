@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { auth, db } from "@/firebase";
 import {
   onAuthStateChanged,
@@ -10,6 +11,7 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
   GoogleAuthProvider,
+  AuthError,
 } from "firebase/auth";
 import {
   doc,
@@ -27,7 +29,6 @@ export default function AuthPage() {
   const searchParams = useSearchParams();
   const [darkMode, setDarkMode] = useState(false);
   const [userRole, setUserRole] = useState<"client" | "freelancer">("client");
-  const [authenticated, setAuthenticated] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authChecked, setAuthChecked] = useState(false);
@@ -41,7 +42,6 @@ export default function AuthPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setAuthenticated(true);
         const snap = await getDoc(doc(db, "users", user.uid));
         const data = snap.data();
         setUserInfo({
@@ -49,7 +49,6 @@ export default function AuthPage() {
           image: data?.image || user.photoURL || "",
         });
       } else {
-        setAuthenticated(false);
         setUserInfo(null);
       }
       setAuthChecked(true);
@@ -96,9 +95,10 @@ export default function AuthPage() {
         });
         router.push(`/dashboard/${userRole}`);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setErrorMsg(err.message || "Authentication failed");
+      const authError = err as AuthError;
+      setErrorMsg(authError.message || "Authentication failed");
     }
   };
 
@@ -121,7 +121,7 @@ export default function AuthPage() {
         const role = snap.data()?.role || "client";
         router.push(`/dashboard/${role}`);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setErrorMsg("Google login failed");
     }
@@ -147,7 +147,13 @@ export default function AuthPage() {
           {userInfo && (
             <div className="flex items-center gap-2">
               {userInfo.image ? (
-                <img src={userInfo.image} alt="User avatar" className="w-8 h-8 rounded-full" />
+                <Image 
+                  src={userInfo.image} 
+                  alt="User avatar" 
+                  width={32}
+                  height={32}
+                  className="rounded-full"
+                />
               ) : (
                 <FaUserCircle className="w-6 h-6 text-purple-500" />
               )}
@@ -159,10 +165,10 @@ export default function AuthPage() {
           </button>
         </div>
         <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-4xl sm:text-5xl font-extrabold text-purple-700 mb-2">
-          Welcome to Onboarding
+          Welcome to FreelanceHub
         </motion.h1>
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="text-lg max-w-xl mx-auto text-gray-600 dark:text-gray-300">
-          One platform to manage clients, collaborate, and grow your freelance business.
+          Connect, collaborate, and grow your freelance business with the ultimate platform.
         </motion.p>
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} className="mt-6 max-w-md mx-auto w-full">
@@ -261,7 +267,7 @@ export default function AuthPage() {
       </main>
 
       <footer className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-        © {new Date().getFullYear()} Onboarding. All rights reserved.
+        © {new Date().getFullYear()} FreelanceHub. All rights reserved.
       </footer>
     </div>
   );

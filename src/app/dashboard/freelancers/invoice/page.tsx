@@ -156,7 +156,7 @@ export default function InvoicePage() {
       theme: "striped",
     });
 
-    const finalY = (doc as any).lastAutoTable?.finalY || 70;
+    const finalY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 70;
     doc
       .text(
         `Subtotal: $${invoice.items

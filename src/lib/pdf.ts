@@ -1,7 +1,16 @@
 // lib/pdf.ts
 import jsPDF from "jspdf";
+import { InvoiceItem } from "@/types/auth";
 
-export function generateInvoicePDF(invoice: any, clientName: string) {
+interface InvoiceData {
+  invoiceNumber: string;
+  issuedAt: string;
+  dueDate: string;
+  items: InvoiceItem[];
+  total: number;
+}
+
+export function generateInvoicePDF(invoice: InvoiceData, clientName: string) {
   const doc = new jsPDF();
   doc.setFontSize(16);
   doc.text("Invoice", 90, 20);
@@ -12,7 +21,7 @@ export function generateInvoicePDF(invoice: any, clientName: string) {
   doc.text(`Due: ${invoice.dueDate}`, 20, 60);
 
   let y = 70;
-  invoice.items.forEach((item: any, idx: number) => {
+  invoice.items.forEach((item: InvoiceItem, idx: number) => {
     doc.text(`${idx + 1}. ${item.description} - ${item.quantity} x $${item.rate}`, 20, y);
     y += 10;
   });

@@ -1,0 +1,80 @@
+{
+  "React Functional Component": {
+    "prefix": "rfc",
+    "body": [
+      "import React from 'react';",
+      "",
+      "interface ${1:ComponentName}Props {",
+      "  $2",
+      "}",
+      "",
+      "const ${1:ComponentName}: React.FC<${1:ComponentName}Props> = ({ $3 }) => {",
+      "  return (",
+      "    <div>",
+      "      $4",
+      "    </div>",
+      "  );",
+      "};",
+      "",
+      "export default ${1:ComponentName};"
+    ],
+    "description": "Create a React functional component with TypeScript"
+  },
+  "React Hook": {
+    "prefix": "rhook",
+    "body": [
+      "import { useState, useEffect } from 'react';",
+      "",
+      "const use${1:HookName} = () => {",
+      "  const [${2:state}, set${2/(.*)/${1:/capitalize}/}] = useState($3);",
+      "",
+      "  useEffect(() => {",
+      "    $4",
+      "  }, []);",
+      "",
+      "  return { ${2:state}, set${2/(.*)/${1:/capitalize}/} };",
+      "};",
+      "",
+      "export default use${1:HookName};"
+    ],
+    "description": "Create a custom React hook"
+  },
+  "Next.js Page": {
+    "prefix": "npage",
+    "body": [
+      "import React from 'react';",
+      "",
+      "interface ${1:PageName}Props {",
+      "  $2",
+      "}",
+      "",
+      "const ${1:PageName}: React.FC<${1:PageName}Props> = ({ $3 }) => {",
+      "  return (",
+      "    <div>",
+      "      <h1>${1:PageName}</h1>",
+      "      $4",
+      "    </div>",
+      "  );",
+      "};",
+      "",
+      "export default ${1:PageName};"
+    ],
+    "description": "Create a Next.js page component"
+  },
+  "TypeScript Interface": {
+    "prefix": "tsi",
+    "body": [
+      "interface ${1:InterfaceName} {",
+      "  $2",
+      "}"
+    ],
+    "description": "Create a TypeScript interface"
+  },
+  "Console Log": {
+    "prefix": "cl",
+    "body": [
+      "console.log('$1', $1);"
+    ],
+    "description": "Console log with label"
+  }
+}

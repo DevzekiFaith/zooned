@@ -7,8 +7,7 @@ import {
   BuildingOffice2Icon,
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/solid";
-// import AIAssistant from "@/components/AIAssistant";
-import { useRouter } from "next/navigation";
+
 export default function ClientOnboardingPage() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
@@ -21,14 +20,14 @@ export default function ClientOnboardingPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const steps = [
-    { label: "Personal", icon: <UserIcon className="w-6 h-6 text-blue-600" /> },
+    { label: "Personal", icon: <UserIcon className="w-6 h-6 text-purple-600" /> },
     {
       label: "Company",
-      icon: <BuildingOffice2Icon className="w-6 h-6 text-blue-600" />,
+      icon: <BuildingOffice2Icon className="w-6 h-6 text-purple-600" />,
     },
     {
       label: "Notes",
-      icon: <ChatBubbleLeftRightIcon className="w-6 h-6 text-blue-600" />,
+      icon: <ChatBubbleLeftRightIcon className="w-6 h-6 text-purple-600" />,
     },
   ];
 
@@ -45,7 +44,7 @@ export default function ClientOnboardingPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-100">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-purple-100">
         <div className="bg-white rounded-xl shadow-xl p-10 max-w-md w-full flex flex-col items-center transform transition duration-700 scale-95 hover:scale-100">
           <CheckCircleIcon className="w-16 h-16 text-green-500 mb-4 animate-bounce" />
           <h2 className="text-3xl font-bold mb-2 text-green-700">Success!</h2>
@@ -54,7 +53,7 @@ export default function ClientOnboardingPage() {
             successfully.
           </p>
           <button
-            className="mt-2 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-transform transform hover:scale-105"
+            className="mt-2 px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-transform transform hover:scale-105"
             onClick={() => {
               setForm({
                 name: "",
@@ -75,12 +74,12 @@ export default function ClientOnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-purple-100 px-4">
       <form
         onSubmit={handleSubmit}
         className="bg-white rounded-xl shadow-xl p-8 w-full max-w-md flex flex-col gap-6 transform transition-all duration-500 hover:scale-[1.01] hover:-translate-y-1"
       >
-        <h1 className="text-3xl font-bold text-center text-blue-700">
+        <h1 className="text-3xl font-bold text-center text-purple-700">
           Client Onboarding
         </h1>
 
@@ -92,7 +91,7 @@ export default function ClientOnboardingPage() {
             >
               <div
                 className={`rounded-full p-2 transition-transform duration-300 ${
-                  step === idx + 1 ? "bg-blue-100 scale-110" : "bg-gray-100"
+                  step === idx + 1 ? "bg-purple-100 scale-110" : "bg-gray-100"
                 }`}
               >
                 {s.icon}
@@ -100,7 +99,7 @@ export default function ClientOnboardingPage() {
               <span
                 className={`text-xs mt-1 ${
                   step === idx + 1
-                    ? "text-blue-700 font-semibold"
+                    ? "text-purple-700 font-semibold"
                     : "text-gray-400"
                 }`}
               >
@@ -112,7 +111,7 @@ export default function ClientOnboardingPage() {
 
         <div className="h-2 w-full bg-gray-200 rounded-full">
           <div
-            className="h-2 bg-blue-500 rounded-full transition-all"
+            className="h-2 bg-purple-500 rounded-full transition-all"
             style={{ width: `${(step / steps.length) * 100}%` }}
           />
         </div>
@@ -184,7 +183,7 @@ export default function ClientOnboardingPage() {
                 placeholder="Extra notes..."
               />
             </label>
-            <div className="bg-blue-50 rounded p-4 mt-4 text-sm text-blue-900 space-y-1">
+            <div className="bg-purple-50 rounded p-4 mt-4 text-sm text-purple-900 space-y-1">
               <div>
                 <strong>Name:</strong> {form.name}
               </div>
@@ -225,7 +224,7 @@ export default function ClientOnboardingPage() {
             <button
               type="button"
               onClick={() => setStep(step + 1)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition"
               disabled={
                 step === 1 && (!form.name || !form.email || !form.phone)
               }
@@ -259,7 +258,7 @@ export default function ClientOnboardingPage() {
           animation: fade-in-up 0.5s ease-out both;
         }
         .input {
-          @apply w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400;
+          @apply w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400;
         }
       `}</style>
     </div>

@@ -4,24 +4,38 @@ import { useEffect, useState } from "react";
 import { auth, db } from "../../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
+import { Client } from "@/types/auth";
 
 export default function ClientDetailPage() {
   const { clientId } = useParams();
-  const [client, setClient] = useState<any>(null);
-  const user = auth.currentUser!;
+  const [client, setClient] = useState<Client | null>(null);
+  const [loading, setLoading] = useState(true);
+  const user = auth.currentUser;
 
   useEffect(() => {
     const fetchClient = async () => {
-      const docRef = doc(db, "users", user.uid, "clients", String(clientId));
-      const docSnap = await getDoc(docRef);
-      setClient(docSnap.data());
+      if (!user || !clientId) return;
+      
+      try {
+        const docRef = doc(db, "users", user.uid, "clients", String(clientId));
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setClient({ id: docSnap.id, ...docSnap.data() } as Client);
+        }
+      } catch (error) {
+        console.error("Error fetching client:", error);
+      } finally {
+        setLoading(false);
+      }
     };
+    
     fetchClient();
-  }, []);
+  }, [clientId, user]);
 
-  if (!client) return <p className="p-4">Loading...</p>;
+  if (loading) return <p className="p-4">Loading...</p>;
+  if (!client) return <p className="p-4">Client not found</p>;
 
-  const whatsappUrl = `https://wa.me/${client.whatsapp}?text=${encodeURIComponent(
+  const whatsappUrl = `https://wa.me/${client.phone}?text=${encodeURIComponent(
     `Hi ${client.name}, this is a message regarding your onboarding.`
   )}`;
 
@@ -29,11 +43,11 @@ export default function ClientDetailPage() {
     <div className="p-6 max-w-3xl mx-auto space-y-8">
       {/* Profile Card */}
       <div className="flex items-center gap-6 bg-white rounded-xl shadow p-6">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-3xl text-white font-bold">
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-3xl text-white font-bold">
           {client.name?.[0] || "?"}
         </div>
         <div>
-          <h2 className="text-2xl font-bold">{client.name}</h2>
+          <h2 className="text-2xl font-bold text-purple-700">{client.name}</h2>
           <p className="text-gray-600">{client.email}</p>
           <p className="text-gray-600">{client.phone}</p>
           <div className="flex gap-3 mt-2">
@@ -47,7 +61,7 @@ export default function ClientDetailPage() {
             </a>
             <a
               href={`mailto:${client.email}`}
-              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded transition"
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded transition"
             >
               <span>✉️</span> Email
             </a>
@@ -59,7 +73,7 @@ export default function ClientDetailPage() {
       <div className="flex gap-4 justify-center">
         <Link
           href={`documents`}
-          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded font-semibold transition"
+          className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded font-semibold transition"
         >
           📁 Documents
         </Link>
@@ -71,7 +85,7 @@ export default function ClientDetailPage() {
         </Link>
         <Link
           href={`invoice`}
-          className="bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded font-semibold transition"
+          className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded font-semibold transition"
         >
           💸 Invoices
         </Link>
@@ -79,7 +93,7 @@ export default function ClientDetailPage() {
 
       {/* Client Details Section */}
       <div className="bg-white rounded-xl shadow p-6">
-        <h3 className="text-lg font-bold mb-2">Client Details</h3>
+        <h3 className="text-lg font-bold mb-2 text-purple-700">Client Details</h3>
         <ul className="text-gray-700 space-y-1">
           <li>
             <span className="font-semibold">Name:</span> {client.name}
@@ -91,7 +105,7 @@ export default function ClientDetailPage() {
             <span className="font-semibold">Phone:</span> {client.phone}
           </li>
           <li>
-            <span className="font-semibold">WhatsApp:</span> {client.whatsapp}
+            <span className="font-semibold">Company:</span> {client.company || "Not specified"}
           </li>
         </ul>
       </div>

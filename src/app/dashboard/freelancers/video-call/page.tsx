@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { auth, db } from "@/firebase";
 import {
@@ -24,7 +24,13 @@ export default function VideoCallPage() {
   const [user, setUser] = useState(() => auth.currentUser);
   const [date, setDate] = useState("");
   const [note, setNote] = useState("");
-  const [calls, setCalls] = useState<any[]>([]);
+  const [calls, setCalls] = useState<Array<{
+    id: string;
+    note: string;
+    date: Date;
+    meetingUrl: string;
+    createdAt: unknown;
+  }>>([]);
   const [meetingUrl, setMeetingUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -121,8 +127,7 @@ export default function VideoCallPage() {
       fetchCalls();
       launchJitsiMeeting(url);
       await sendNotification(url);
-    } catch (error) {
-      console.error("Scheduling failed", error);
+    } catch {
       setErrorToast("Failed to schedule call. Please try again.");
       setTimeout(() => setErrorToast(null), 4000);
     } finally {
@@ -130,7 +135,7 @@ export default function VideoCallPage() {
     }
   };
 
-  const fetchCalls = async () => {
+  const fetchCalls = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -149,7 +154,7 @@ export default function VideoCallPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, clientId]);
 
   const launchJitsiMeeting = (roomUrl: string) => {
     if (!jitsiContainerRef.current) return;
@@ -164,7 +169,7 @@ export default function VideoCallPage() {
     const script = document.createElement("script");
     script.src = "https://meet.jit.si/external_api.js";
     script.onload = () => {
-      // @ts-ignore
+      // @ts-expect-error - JitsiMeetExternalAPI is loaded dynamically
       new window.JitsiMeetExternalAPI(domain, options);
     };
     document.body.appendChild(script);
@@ -172,7 +177,7 @@ export default function VideoCallPage() {
 
   useEffect(() => {
     if (user) fetchCalls();
-  }, [user]);
+  }, [user, fetchCalls]);
 
   return (
     <div className="max-w-2xl mx-auto mt-10 space-y-4">

@@ -1,221 +1,218 @@
 "use client";
 
-import { useEffect, useState, useCallback, ChangeEvent } from "react";
-import {
-  FaFileDownload,
-  FaPlus,
-  FaCheckCircle,
-  FaExclamationCircle,
-  FaWhatsapp,
-  FaEnvelope,
-  FaEye,
-  FaTrash,
-  FaSearch,
-  FaSortAlphaDown,
-  FaSortNumericDown,
-  FaFilter,
-  FaDollarSign,
-} from "react-icons/fa";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
+import { useState } from "react";
+import { FaFileInvoiceDollar, FaDownload, FaShare, FaPlus, FaTrash } from "react-icons/fa";
 
 interface InvoiceItem {
   description: string;
   quantity: number;
   rate: number;
+  amount: number;
 }
 
 interface Invoice {
+  id: string;
   clientName: string;
   clientEmail: string;
-  clientAddress: string;
   date: string;
-  partPayment: number;
-  completePayment: boolean;
-  tax: number;
-  discount: number;
+  dueDate: string;
   items: InvoiceItem[];
-  logo?: string;
-  tag?: string;
+  subtotal: number;
+  tax: number;
+  total: number;
+  status: "draft" | "sent" | "paid" | "overdue";
 }
 
-export default function InvoicePage() {
-  const [invoice, setInvoice] = useState<Invoice>(() => {
-    const stored = localStorage.getItem("invoice-data");
-    return stored
-      ? JSON.parse(stored)
-      : {
-          clientName: "",
-          clientEmail: "",
-          clientAddress: "",
-          date: new Date().toISOString().split("T")[0],
-          partPayment: 0,
-          completePayment: false,
-          tax: 0,
-          discount: 0,
-          items: [{ description: "", quantity: 1, rate: 0 }],
-          logo: "",
-        };
-  });
+export default function InvoiceComponent() {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
-  const [history, setHistory] = useState<Invoice[]>(() => {
-    const h = localStorage.getItem("invoice-history");
-    return h ? JSON.parse(h) : [];
-  });
-
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [sortBy, setSortBy] = useState<"date" | "name">("date");
-  const [filterPayment, setFilterPayment] = useState<"all" | "paid" | "unpaid">("all");
-  const [selectedHistoryIndex, setSelectedHistoryIndex] = useState<number | null>(null);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [pendingHistoryIndex, setPendingHistoryIndex] = useState<number | null>(null);
-  const [editMode, setEditMode] = useState(false);
-
-  const handleViewHistory = (index: number) => {
-    setShowConfirm(true);
-    setPendingHistoryIndex(index);
+  const createNewInvoice = () => {
+    const newInvoice: Invoice = {
+      id: Date.now().toString(),
+      clientName: "",
+      clientEmail: "",
+      date: new Date().toISOString().split("T")[0],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      items: [],
+      subtotal: 0,
+      tax: 0,
+      total: 0,
+      status: "draft",
+    };
+    setSelectedInvoice(newInvoice);
+    setShowCreateForm(true);
   };
 
-  const confirmViewHistory = () => {
-    if (pendingHistoryIndex !== null) {
-      const selected = history[pendingHistoryIndex];
-      setInvoice(selected);
-      setSelectedHistoryIndex(pendingHistoryIndex);
-      localStorage.setItem("invoice-data", JSON.stringify(selected));
-      setShowConfirm(false);
-      setPendingHistoryIndex(null);
-      setEditMode(true);
+  const downloadInvoice = (invoice: Invoice) => {
+    // Simulate PDF download
+    const content = `
+      INVOICE
+      
+      Client: ${invoice.clientName}
+      Email: ${invoice.clientEmail}
+      Date: ${invoice.date}
+      Due Date: ${invoice.dueDate}
+      
+      Items:
+      ${invoice.items.map(item => 
+        `${item.description} - ${item.quantity} x $${item.rate} = $${item.amount}`
+      ).join('\n')}
+      
+      Subtotal: $${invoice.subtotal}
+      Tax: $${invoice.tax}
+      Total: $${invoice.total}
+    `;
+    
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `invoice-${invoice.id}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const shareInvoice = (invoice: Invoice) => {
+    const subject = encodeURIComponent(`Invoice from FreelanceHub - ${invoice.clientName}`);
+    const body = encodeURIComponent(
+      `Hi ${invoice.clientName},\n\nPlease find attached your invoice for $${invoice.total}.\n\nDue Date: ${invoice.dueDate}\n\nThank you!`
+    );
+    window.open(`mailto:${invoice.clientEmail}?subject=${subject}&body=${body}`);
+  };
+
+  const getStatusColor = (status: Invoice["status"]) => {
+    switch (status) {
+      case "draft": return "bg-gray-100 text-gray-800";
+      case "sent": return "bg-blue-100 text-blue-800";
+      case "paid": return "bg-green-100 text-green-800";
+      case "overdue": return "bg-red-100 text-red-800";
+      default: return "bg-gray-100 text-gray-800";
     }
   };
 
-  const generateTag = (baseName: string, historyList: Invoice[]) => {
-    const versionCount = historyList.filter(h => h.clientName === baseName).length;
-    return versionCount > 0 ? `v${versionCount + 1}` : undefined;
-  };
-
-  const handleSaveAsNew = () => {
-    const newTag = generateTag(invoice.clientName, history);
-    const updatedInvoice = { ...invoice, tag: newTag };
-    const updatedHistory = [...history, updatedInvoice];
-    setHistory(updatedHistory);
-    localStorage.setItem("invoice-history", JSON.stringify(updatedHistory));
-    localStorage.setItem("invoice-data", JSON.stringify(updatedInvoice));
-    setInvoice(updatedInvoice);
-    setEditMode(false);
-  };
-
-  const filteredHistory = [...history]
-    .filter((item) => {
-      const matchesQuery =
-        item.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.clientEmail.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesPayment =
-        filterPayment === "all" ||
-        (filterPayment === "paid" && item.completePayment) ||
-        (filterPayment === "unpaid" && !item.completePayment);
-      return matchesQuery && matchesPayment;
-    })
-    .sort((a, b) => {
-      if (sortBy === "name") {
-        return a.clientName.localeCompare(b.clientName);
-      }
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    });
-
-  const calculateTotal = (inv: Invoice) => {
-    const sub = inv.items.reduce((sum, i) => sum + i.quantity * i.rate, 0);
-    return sub + inv.tax - inv.discount;
-  };
-
   return (
-    <div>
-      {/* History List */}
-      {history.length > 0 && (
-        <div className="mb-6 bg-white p-4 rounded shadow">
-          <h3 className="text-lg font-semibold mb-2">Invoice History</h3>
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-purple-700">Invoices</h1>
+        <button
+          onClick={createNewInvoice}
+          className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+        >
+          <FaPlus />
+          Create Invoice
+        </button>
+      </div>
 
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <FaSearch className="text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search by client name or email"
-              className="border px-2 py-1 rounded w-full sm:w-auto flex-grow"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <button
-              onClick={() => setSortBy(sortBy === "name" ? "date" : "name")}
-              className="text-gray-600 hover:text-gray-900"
-              title="Toggle Sort"
-            >
-              {sortBy === "name" ? <FaSortAlphaDown /> : <FaSortNumericDown />}
-            </button>
-            <select
-              value={filterPayment}
-              onChange={(e) => setFilterPayment(e.target.value as any)}
-              className="border px-2 py-1 rounded"
-              title="Filter by Payment"
-            >
-              <option value="all">All</option>
-              <option value="paid">Complete</option>
-              <option value="unpaid">Partial</option>
-            </select>
-          </div>
-
-          <ul className="space-y-2 max-h-60 overflow-auto">
-            {filteredHistory.map((item, index) => (
-              <li
-                key={index}
-                className="flex justify-between items-center bg-gray-50 p-3 rounded hover:bg-gray-100"
-              >
-                <div className="text-sm">
-                  <p className="font-medium">{item.clientName} {item.tag && <span className="text-xs text-gray-500">({item.tag})</span>}</p>
-                  <p className="text-gray-500 text-xs">{item.date}</p>
-                  <p className="text-blue-700 font-semibold">${calculateTotal(item).toFixed(2)}</p>
-                </div>
-                <button
-                  className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
-                  onClick={() => handleViewHistory(index)}
-                >
-                  <FaEye /> View
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {editMode && (
-        <div className="mb-6 text-right">
+      {invoices.length === 0 ? (
+        <div className="text-center py-12">
+          <FaFileInvoiceDollar className="text-6xl text-gray-300 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-600 mb-2">No invoices yet</h3>
+          <p className="text-gray-500 mb-6">Create your first invoice to get started</p>
           <button
-            onClick={handleSaveAsNew}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            onClick={createNewInvoice}
+            className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors"
           >
-            Save as New Invoice
+            Create Your First Invoice
           </button>
         </div>
+      ) : (
+        <div className="grid gap-6">
+          {invoices.map((invoice) => (
+            <div
+              key={invoice.id}
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Invoice #{invoice.id}
+                  </h3>
+                  <p className="text-gray-600">{invoice.clientName}</p>
+                  <p className="text-sm text-gray-500">{invoice.clientEmail}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(invoice.status)}`}>
+                    {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => downloadInvoice(invoice)}
+                      className="p-2 text-gray-600 hover:text-purple-600 transition-colors"
+                      title="Download invoice"
+                    >
+                      <FaDownload />
+                    </button>
+                    <button
+                      onClick={() => shareInvoice(invoice)}
+                      className="p-2 text-gray-600 hover:text-purple-600 transition-colors"
+                      title="Share invoice"
+                    >
+                      <FaShare />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInvoices(prev => prev.filter(inv => inv.id !== invoice.id));
+                      }}
+                      className="p-2 text-gray-600 hover:text-red-600 transition-colors"
+                      title="Delete invoice"
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500">Date:</span>
+                  <p className="font-medium">{invoice.date}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Due Date:</span>
+                  <p className="font-medium">{invoice.dueDate}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Items:</span>
+                  <p className="font-medium">{invoice.items.length}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Total:</span>
+                  <p className="font-medium text-lg text-purple-600">${invoice.total}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      {showConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded shadow-xl text-center">
-            <h4 className="text-lg font-semibold mb-3">Overwrite current invoice?</h4>
-            <p className="text-sm text-gray-600 mb-4">
-              This will replace your current invoice form with the selected history item.
-            </p>
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={confirmViewHistory}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                Yes, Load
-              </button>
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300"
-              >
-                Cancel
-              </button>
+      {showCreateForm && selectedInvoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-purple-700 mb-6">Create New Invoice</h2>
+              <p className="text-gray-600 mb-4">
+                This is a demo form. In a real implementation, you would have a complete invoice creation form here.
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowCreateForm(false)}
+                  className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setInvoices(prev => [...prev, selectedInvoice]);
+                    setShowCreateForm(false);
+                    setSelectedInvoice(null);
+                  }}
+                  className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Create Invoice
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -6,12 +6,12 @@ import { getStorage } from "firebase/storage"; // Add this import
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCPgqop5Yhz7S3rvH7QVfZpQSYtDNoYjfs",
-  authDomain: "onboarding-3eb95.firebaseapp.com",
-  projectId: "onboarding-3eb95",
-  storageBucket: "onboarding-3eb95.appspot.com", // Corrected bucket domain
-  messagingSenderId: "8088933730",
-  appId: "1:8088933730:web:2fa7c9641ef2eb7c48483b"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCPgqop5Yhz7S3rvH7QVfZpQSYtDNoYjfs",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "onboarding-3eb95.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "onboarding-3eb95",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "onboarding-3eb95.appspot.com",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "8088933730",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:8088933730:web:2fa7c9641ef2eb7c48483b"
 };
 
 // Initialize Firebase

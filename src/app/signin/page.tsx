@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createUserWithEmailAndPassword,
   updateProfile,
   sendPasswordResetEmail,
+  AuthError,
 } from "firebase/auth";
 import { auth, db, storage } from "@/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
-import { toast } from "react-hot-toast";
 
 export default function SigninPage() {
   const router = useRouter();
@@ -87,9 +87,10 @@ export default function SigninPage() {
           role === "freelancer" ? "/dashboard/freelancer" : "/dashboard/clients"
         );
       }, 1000);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      showToast(err.message || "Signup failed", "error");
+      const authError = err as AuthError;
+      showToast(authError.message || "Signup failed", "error");
     } finally {
       setLoading(false);
     }
@@ -100,14 +101,15 @@ export default function SigninPage() {
     try {
       await sendPasswordResetEmail(auth, email);
       showToast("Password reset email sent", "success");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      showToast("Failed to send reset email", "error");
+      const authError = err as AuthError;
+      showToast(authError.message || "Failed to send reset email", "error");
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 to-blue-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 to-purple-50 px-4">
       <div className="w-full max-w-md bg-white p-6 rounded-xl shadow-xl space-y-4 relative">
         {toastMsg && (
           <div
@@ -124,20 +126,20 @@ export default function SigninPage() {
           </div>
         )}
 
-        <h2 className="text-2xl font-bold text-center text-blue-700">
+        <h2 className="text-2xl font-bold text-center text-purple-700">
           Create Account
         </h2>
 
         <input
           type="text"
-          className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-purple-400"
           placeholder="Name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <input
           type="email"
-          className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-purple-400"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -146,7 +148,7 @@ export default function SigninPage() {
         <div className="relative">
           <input
             type={showPassword ? "text" : "password"}
-            className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-purple-400"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -164,7 +166,7 @@ export default function SigninPage() {
         <div className="relative">
           <input
             type={showConfirmPassword ? "text" : "password"}
-            className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-purple-400"
             placeholder="Confirm Password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
@@ -183,7 +185,7 @@ export default function SigninPage() {
           title="Select Role"
           value={role}
           onChange={(e) => setRole(e.target.value as "client" | "freelancer")}
-          className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-purple-400"
         >
           <option value="client">Client</option>
           <option value="freelancer">Freelancer</option>
@@ -202,8 +204,8 @@ export default function SigninPage() {
           disabled={loading}
           className={`w-full py-2 rounded text-white font-semibold transition-all duration-200 ${
             loading
-              ? "bg-blue-300 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700"
+              ? "bg-purple-300 cursor-not-allowed"
+              : "bg-purple-600 hover:bg-purple-700"
           }`}
         >
           {loading ? "Creating..." : "Sign Up"}
@@ -211,14 +213,14 @@ export default function SigninPage() {
 
         <p className="text-sm text-gray-600 text-center">
           Already have an account?{" "}
-          <a href="/login" className="text-blue-600 underline">
+          <a href="/auth" className="text-purple-600 underline">
             Login
           </a>
         </p>
         <p className="text-sm text-center">
           <button
             onClick={handleResetPassword}
-            className="text-blue-600 underline"
+            className="text-purple-600 underline"
           >
             Forgot Password?
           </button>

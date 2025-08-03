@@ -59,7 +59,7 @@ export default function AuthPage() {
         const snap = await getDoc(doc(db, "users", user.uid));
         const data = snap.data();
         const role = data?.role || "client";
-        router.push(`/dashboard/${role}`);
+        router.push('/dashboard');
       }
     });
     return () => unsub();
@@ -132,7 +132,7 @@ export default function AuthPage() {
         const loginRes = await signInWithEmailAndPassword(auth, email, password);
         const userSnap = await getDoc(doc(db, "users", loginRes.user.uid));
         const role = userSnap.data()?.role || "client";
-        router.push(`/dashboard/${role}`);
+        router.push('/dashboard');
       } else {
         const signupRes = await createUserWithEmailAndPassword(auth, email, password);
         await setDoc(doc(db, "users", signupRes.user.uid), {
@@ -141,7 +141,7 @@ export default function AuthPage() {
           role: userRole,
           createdAt: serverTimestamp(),
         });
-        router.push(`/dashboard/${userRole}`);
+        router.push('/dashboard');
       }
     });
 
@@ -177,7 +177,7 @@ export default function AuthPage() {
       
       const userData = snap.data();
       const role = userData?.role || userRole;
-      router.push(`/dashboard/${role}`);
+      router.push('/dashboard');
     });
 
     if (authError) {

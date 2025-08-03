@@ -142,10 +142,16 @@ export default function VideoCallPage() {
       const snapshot = await getDocs(
         collection(db, "users", user.uid, "clients", clientId, "videoCalls")
       );
-      const fetched = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const fetched = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          note: data.note || '',
+          date: data.date || new Date(),
+          meetingUrl: data.meetingUrl || '',
+          createdAt: data.createdAt || null,
+        };
+      });
       setCalls(fetched);
       localStorage.setItem(`videoCalls-${clientId}`, JSON.stringify(fetched));
     } catch {
@@ -285,9 +291,14 @@ export default function VideoCallPage() {
             <li key={call.id} className="border p-2 rounded">
               <p>
                 <strong>Date:</strong>{" "}
-                {call.date?.seconds
-                  ? new Date(call.date.seconds * 1000).toLocaleString()
-                  : ""}
+                {call.date ? (
+                  // Handle both Firestore Timestamp and regular Date objects
+                  typeof call.date === 'object' && call.date !== null && 'seconds' in call.date
+                    ? new Date((call.date as any).seconds * 1000).toLocaleString()
+                    : call.date instanceof Date
+                    ? call.date.toLocaleString()
+                    : new Date(call.date).toLocaleString()
+                ) : "No date"}
               </p>
               <p>
                 <strong>Note:</strong> {call.note}

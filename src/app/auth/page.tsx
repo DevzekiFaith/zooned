@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { auth, db } from "@/firebase";
@@ -9,78 +9,125 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
-  sendPasswordResetEmail,
   GoogleAuthProvider,
   AuthError,
 } from "firebase/auth";
+import { validateEmail, validatePassword, validateName } from "@/utils/validation";
+import { withErrorHandling, AppError } from "@/utils/errorHandling";
+import { LoadingButton } from "@/components/ui/LoadingSpinner";
+import { Status } from "@/types/common";
 import {
   doc,
   getDoc,
   setDoc,
-  collection,
-  addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { motion } from "framer-motion";
-import { FaSun, FaMoon, FaUserCircle } from "react-icons/fa";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  FaGoogle, 
+  FaUser, 
+  FaBriefcase, 
+  FaEye, 
+  FaEyeSlash, 
+  FaArrowRight,
+  FaCheckCircle,
+  FaExclamationTriangle,
+  FaRocket,
+  FaUsers,
+  FaCalendar
+} from "react-icons/fa";
 
 export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [darkMode, setDarkMode] = useState(false);
   const [userRole, setUserRole] = useState<"client" | "freelancer">("client");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authChecked, setAuthChecked] = useState(false);
-  const [subscribed, setSubscribed] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [name, setName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [authStatus, setAuthStatus] = useState<Status>('idle');
+  const [error, setError] = useState<AppError | null>(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
-  const [userInfo, setUserInfo] = useState<{ name: string; image?: string } | null>(null);
+  const [step, setStep] = useState<'role' | 'auth'>('role');
+  const [emailError, setEmailError] = useState<string>('');
+  const [passwordError, setPasswordError] = useState<string>('');
+  const [nameError, setNameError] = useState<string>('');
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const snap = await getDoc(doc(db, "users", user.uid));
         const data = snap.data();
-        setUserInfo({
-          name: data?.name || user.displayName || "User",
-          image: data?.image || user.photoURL || "",
-        });
-      } else {
-        setUserInfo(null);
+        const role = data?.role || "client";
+        router.push(`/dashboard/${role}`);
       }
-      setAuthChecked(true);
     });
     return () => unsub();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     const roleParam = searchParams.get("role");
     if (roleParam === "client" || roleParam === "freelancer") {
       setUserRole(roleParam);
+      setStep('auth');
     }
   }, [searchParams]);
 
-  const handleSubscribe = async () => {
-    if (!email || !email.includes("@")) return;
-    try {
-      await addDoc(collection(db, "newsletter_subscribers"), {
-        email,
-        subscribedAt: serverTimestamp(),
-      });
-      setSubscribed(true);
-    } catch (err) {
-      console.error("Subscription failed", err);
+  const validateForm = useCallback(() => {
+    let isValid = true;
+    
+    // Email validation
+    if (!email.trim()) {
+      setEmailError('Email is required');
+      isValid = false;
+    } else if (!validateEmail(email)) {
+      setEmailError('Please enter a valid email address');
+      isValid = false;
+    } else {
+      setEmailError('');
     }
-  };
 
-  const handleAuthSubmit = async (e: React.FormEvent) => {
+    // Password validation
+    if (!password) {
+      setPasswordError('Password is required');
+      isValid = false;
+    } else if (!isLoginMode) {
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.isValid) {
+        setPasswordError(passwordValidation.errors[0]);
+        isValid = false;
+      } else {
+        setPasswordError('');
+      }
+    } else {
+      setPasswordError('');
+    }
+
+    // Name validation for signup
+    if (!isLoginMode) {
+      if (!name.trim()) {
+        setNameError('Name is required');
+        isValid = false;
+      } else if (!validateName(name)) {
+        setNameError('Please enter a valid name (2-50 characters)');
+        isValid = false;
+      } else {
+        setNameError('');
+      }
+    }
+
+    return isValid;
+  }, [email, password, name, isLoginMode]);
+
+  const handleAuthSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg("");
-    if (!email || !password) return setErrorMsg("Please enter both email and password.");
-    try {
+    
+    if (!validateForm()) return;
+    
+    setAuthStatus('loading');
+    setError(null);
+
+    const { error: authError } = await withErrorHandling(async () => {
       if (isLoginMode) {
         const loginRes = await signInWithEmailAndPassword(auth, email, password);
         const userSnap = await getDoc(doc(db, "users", loginRes.user.uid));
@@ -89,186 +136,338 @@ export default function AuthPage() {
       } else {
         const signupRes = await createUserWithEmailAndPassword(auth, email, password);
         await setDoc(doc(db, "users", signupRes.user.uid), {
-          email,
+          email: email.trim().toLowerCase(),
+          name: name.trim(),
           role: userRole,
           createdAt: serverTimestamp(),
         });
         router.push(`/dashboard/${userRole}`);
       }
-    } catch (err) {
-      console.error(err);
-      const authError = err as AuthError;
-      setErrorMsg(authError.message || "Authentication failed");
-    }
-  };
+    });
 
-  const handleGoogleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
+    if (authError) {
+      setError(authError);
+      setAuthStatus('error');
+    } else {
+      setAuthStatus('success');
+    }
+  }, [email, password, name, isLoginMode, userRole, validateForm, router]);
+
+  const handleGoogleSignIn = useCallback(async () => {
+    if (step === 'role') return;
+    
+    setAuthStatus('loading');
+    setError(null);
+
+    const { error: authError } = await withErrorHandling(async () => {
+      const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       const docRef = doc(db, "users", user.uid);
       const snap = await getDoc(docRef);
+      
       if (!snap.exists()) {
         await setDoc(docRef, {
           email: user.email,
-          name: user.displayName,
-          image: user.photoURL,
-          role: "client",
+          name: user.displayName || 'User',
+          role: userRole,
+          createdAt: serverTimestamp(),
         });
-        router.push("/dashboard/client");
-      } else {
-        const role = snap.data()?.role || "client";
-        router.push(`/dashboard/${role}`);
       }
-    } catch (err) {
-      console.error(err);
-      setErrorMsg("Google login failed");
+      
+      const userData = snap.data();
+      const role = userData?.role || userRole;
+      router.push(`/dashboard/${role}`);
+    });
+
+    if (authError) {
+      setError(authError);
+      setAuthStatus('error');
+    } else {
+      setAuthStatus('success');
     }
+  }, [userRole, step, router]);
+
+  const handleRoleSelect = (role: "client" | "freelancer") => {
+    setUserRole(role);
+    setStep('auth');
   };
 
-  const handleResetPassword = async () => {
-    try {
-      await sendPasswordResetEmail(auth, resetEmail);
-      setShowResetModal(false);
-      alert("Password reset link sent.");
-    } catch (err) {
-      console.error(err);
-      alert("Reset failed. Please try again.");
-    }
+  const handleBackToRole = () => {
+    setStep('role');
+    setError(null);
+    setEmail('');
+    setPassword('');
+    setName('');
+    setEmailError('');
+    setPasswordError('');
+    setNameError('');
   };
-
-  if (!authChecked) return null;
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-500 ${darkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"}`}>
-      <header className="w-full py-8 text-center relative">
-        <div className="absolute top-4 right-4 flex items-center gap-2">
-          {userInfo && (
-            <div className="flex items-center gap-2">
-              {userInfo.image ? (
-                <Image 
-                  src={userInfo.image} 
-                  alt="User avatar" 
-                  width={32}
-                  height={32}
-                  className="rounded-full"
-                />
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="absolute inset-0 bg-[url('/photo1.jpg')] bg-cover bg-center"></div>
+      </div>
+
+      <div className="relative z-10 min-h-screen flex">
+        {/* Left Side - Branding */}
+        <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-purple-600 to-blue-600 p-12 flex-col justify-center items-center text-white">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-center max-w-md"
+          >
+            <div className="mb-8">
+              <FaRocket className="text-6xl mx-auto mb-4" />
+              <h1 className="text-4xl font-bold mb-4">FreelanceHub</h1>
+              <p className="text-xl text-purple-100">
+                Connect, Collaborate, and Grow Your Business
+              </p>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="flex items-center gap-4">
+                <FaUsers className="text-2xl text-purple-200" />
+                <div className="text-left">
+                  <h3 className="font-semibold">Client Management</h3>
+                  <p className="text-sm text-purple-200">Streamline your relationships</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <FaCalendar className="text-2xl text-purple-200" />
+                <div className="text-left">
+                  <h3 className="font-semibold">Smart Scheduling</h3>
+                  <p className="text-sm text-purple-200">Never miss appointments</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Right Side - Auth Forms */}
+        <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+          <div className="w-full max-w-md">
+            <AnimatePresence mode="wait">
+              {step === 'role' ? (
+                <motion.div
+                  key="role-selection"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="text-center"
+                >
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to FreelanceHub</h2>
+                  <p className="text-gray-600 mb-8">Choose your role to get started</p>
+
+                  <div className="space-y-4">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleRoleSelect('client')}
+                      className="w-full p-6 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all duration-300 group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-purple-100 rounded-full group-hover:bg-purple-200 transition-colors">
+                          <FaUser className="text-2xl text-purple-600" />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="text-xl font-semibold text-gray-900">I'm a Client</h3>
+                          <p className="text-gray-600">Looking to hire talented freelancers</p>
+                        </div>
+                        <FaArrowRight className="text-gray-400 group-hover:text-purple-600 transition-colors ml-auto" />
+                      </div>
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleRoleSelect('freelancer')}
+                      className="w-full p-6 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all duration-300 group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-blue-100 rounded-full group-hover:bg-blue-200 transition-colors">
+                          <FaBriefcase className="text-2xl text-blue-600" />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="text-xl font-semibold text-gray-900">I'm a Freelancer</h3>
+                          <p className="text-gray-600">Ready to showcase my skills and find work</p>
+                        </div>
+                        <FaArrowRight className="text-gray-400 group-hover:text-blue-600 transition-colors ml-auto" />
+                      </div>
+                    </motion.button>
+                  </div>
+                </motion.div>
               ) : (
-                <FaUserCircle className="w-6 h-6 text-purple-500" />
+                <motion.div
+                  key="auth-form"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div className="text-center mb-8">
+                    <button
+                      onClick={handleBackToRole}
+                      className="text-sm text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-2 mx-auto"
+                    >
+                      ← Back to role selection
+                    </button>
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      {userRole === 'client' ? (
+                        <FaUser className="text-2xl text-purple-600" />
+                      ) : (
+                        <FaBriefcase className="text-2xl text-blue-600" />
+                      )}
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        {isLoginMode ? 'Welcome Back' : 'Create Account'}
+                      </h2>
+                    </div>
+                    <p className="text-gray-600">
+                      {isLoginMode ? 'Sign in to your account' : `Join as a ${userRole}`}
+                    </p>
+                  </div>
+
+                  {/* Google Sign In Button */}
+                  <LoadingButton
+                    loading={authStatus === 'loading'}
+                    onClick={handleGoogleSignIn}
+                    className="w-full mb-6 p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-3 text-gray-700 font-medium"
+                  >
+                    <FaGoogle className="text-red-500" />
+                    Continue with Google
+                  </LoadingButton>
+
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white text-gray-500">Or continue with email</span>
+                    </div>
+                  </div>
+
+                  {/* Auth Form */}
+                  <form onSubmit={handleAuthSubmit} className="space-y-4">
+                    {!isLoginMode && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                            nameError ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-purple-200'
+                          }`}
+                          placeholder="Enter your full name"
+                        />
+                        {nameError && (
+                          <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+                            <FaExclamationTriangle className="text-xs" />
+                            {nameError}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                          emailError ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-purple-200'
+                        }`}
+                        placeholder="Enter your email"
+                      />
+                      {emailError && (
+                        <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+                          <FaExclamationTriangle className="text-xs" />
+                          {emailError}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors pr-10 ${
+                            passwordError ? 'border-red-500 focus:ring-red-200' : 'border-gray-300 focus:ring-purple-200'
+                          }`}
+                          placeholder="Enter your password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showPassword ? <FaEyeSlash /> : <FaEye />}
+                        </button>
+                      </div>
+                      {passwordError && (
+                        <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+                          <FaExclamationTriangle className="text-xs" />
+                          {passwordError}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Error Message */}
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700"
+                      >
+                        <FaExclamationTriangle />
+                        <span className="text-sm">{error.message}</span>
+                      </motion.div>
+                    )}
+
+                    <LoadingButton
+                      loading={authStatus === 'loading'}
+                      type="submit"
+                      className={`w-full p-3 rounded-lg text-white font-medium transition-colors ${
+                        userRole === 'client' 
+                          ? 'bg-purple-600 hover:bg-purple-700' 
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      {isLoginMode ? 'Sign In' : 'Create Account'}
+                    </LoadingButton>
+                  </form>
+
+                  <div className="mt-6 text-center">
+                    <button
+                      onClick={() => setIsLoginMode(!isLoginMode)}
+                      className="text-sm text-gray-600 hover:text-gray-800"
+                    >
+                      {isLoginMode 
+                        ? "Don't have an account? Sign up" 
+                        : "Already have an account? Sign in"
+                      }
+                    </button>
+                  </div>
+                </motion.div>
               )}
-              <span className="text-sm font-medium">{userInfo.name}</span>
-            </div>
-          )}
-          <button onClick={() => setDarkMode(!darkMode)} title="Toggle Theme" className="text-xl">
-            {darkMode ? <FaSun /> : <FaMoon />}
-          </button>
-        </div>
-        <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-4xl sm:text-5xl font-extrabold text-purple-700 mb-2">
-          Welcome to FreelanceHub
-        </motion.h1>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="text-lg max-w-xl mx-auto text-gray-600 dark:text-gray-300">
-          Connect, collaborate, and grow your freelance business with the ultimate platform.
-        </motion.p>
-
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} className="mt-6 max-w-md mx-auto w-full">
-          <form onSubmit={handleAuthSubmit} className={`space-y-4 ${errorMsg ? "animate-shake" : ""}`}>
-            <select title="Role" value={userRole} onChange={(e) => setUserRole(e.target.value as "client" | "freelancer")} className="border border-purple-600 text-purple-700 rounded px-4 py-2 w-full">
-              <option value="client">Client</option>
-              <option value="freelancer">Freelancer</option>
-            </select>
-            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-purple-500" />
-            <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-purple-500" />
-            {errorMsg && <p className="text-red-500 text-sm text-left">{errorMsg}</p>}
-            <div className="flex justify-end text-sm">
-              <button type="button" onClick={() => setShowResetModal(true)} className="text-purple-600 underline">
-                Forgot Password?
-              </button>
-            </div>
-            <div className="flex gap-4">
-              <button type="button" onClick={() => setIsLoginMode(true)} className={`w-1/2 py-2 rounded font-semibold ${isLoginMode ? "bg-purple-700 text-white" : "bg-gray-200 text-gray-700"}`}>
-                Sign In
-              </button>
-              <button type="button" onClick={() => setIsLoginMode(false)} className={`w-1/2 py-2 rounded font-semibold ${!isLoginMode ? "bg-purple-700 text-white" : "bg-gray-200 text-gray-700"}`}>
-                Sign Up
-              </button>
-            </div>
-            <button type="submit" className="bg-purple-600 w-full text-white px-6 py-2 rounded hover:bg-purple-700">
-              {isLoginMode ? "Sign In" : "Sign Up"}
-            </button>
-            <button type="button" onClick={handleGoogleSignIn} className="bg-white border w-full border-gray-300 mt-2 text-gray-800 px-6 py-2 rounded hover:bg-gray-100">
-              Continue with Google
-            </button>
-          </form>
-        </motion.div>
-      </header>
-
-      {showResetModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-96 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-purple-700">Reset Password</h2>
-            <input
-              type="email"
-              value={resetEmail}
-              onChange={(e) => setResetEmail(e.target.value)}
-              placeholder="Enter your email"
-              className="w-full border px-4 py-2 rounded mb-4 focus:outline-none"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowResetModal(false)}
-                className="text-sm px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleResetPassword}
-                className="text-sm px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700"
-              >
-                Send Reset Link
-              </button>
-            </div>
+            </AnimatePresence>
           </div>
         </div>
-      )}
-
-      <main className="flex-1 px-4 py-12 max-w-4xl mx-auto">
-        <section className="mb-20">
-          <h2 className="text-2xl font-bold text-center mb-8">What Our Users Say</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {["Alex", "Mia", "Chris"].map((user, idx) => (
-              <motion.div key={user} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.2 }} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                  {user === "Alex" && "This platform saved me hours every week managing client tasks."}
-                  {user === "Mia" && "Onboarding my clients has never been easier."}
-                  {user === "Chris" && "Calendar, video, invoices, and chat all in one place. Brilliant!"}
-                </p>
-                <p className="font-semibold text-purple-600 text-sm">— {user}</p>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mb-20">
-          <h2 className="text-2xl font-bold text-center mb-4">Join Our Newsletter</h2>
-          <p className="text-center text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Get updates on features, tips, and news!
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-xl mx-auto">
-            <input type="email" placeholder="Your email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full sm:w-auto flex-1 border px-4 py-2 rounded focus:outline-none" />
-            <button onClick={handleSubscribe} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded">
-              Subscribe
-            </button>
-          </div>
-          {subscribed && (
-            <p className="text-green-600 text-center mt-2 text-sm">Subscribed successfully!</p>
-          )}
-        </section>
-      </main>
-
-      <footer className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-        © {new Date().getFullYear()} FreelanceHub. All rights reserved.
-      </footer>
+      </div>
     </div>
   );
 }

@@ -360,7 +360,7 @@ export default function InvoicePage() {
         </div>
       </div>
 
-      {previewURL && (
+      {previewURL && previewURL.trim() && (previewURL.startsWith('data:') || previewURL.startsWith('blob:') || previewURL.startsWith('http')) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded shadow-xl max-w-3xl w-full relative">
             <h3 className="font-semibold mb-4 flex items-center gap-2 text-lg">
@@ -370,6 +370,7 @@ export default function InvoicePage() {
               src={previewURL}
               className="w-full h-[500px] border rounded"
               title="Invoice Preview"
+              onError={() => console.log('Failed to load invoice preview')}
             />
             <button
               onClick={() => setPreviewURL(null)}

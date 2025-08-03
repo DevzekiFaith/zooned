@@ -2,14 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { motion } from "framer-motion";
 import { FaSun, FaMoon, FaRocket, FaUsers, FaCalendar, FaFileInvoice, FaStar, FaArrowRight, FaExclamationTriangle } from "react-icons/fa";
 import { validateEmail } from "@/utils/validation";
 import { withErrorHandling, AppError } from "@/utils/errorHandling";
-import { LoadingSpinner, LoadingButton } from "@/components/ui/LoadingSpinner";
+import { LoadingButton } from "@/components/ui/LoadingSpinner";
 import { Status } from "@/types/common";
 
 export default function HomePage() {
@@ -22,28 +21,11 @@ export default function HomePage() {
   const [error, setError] = useState<AppError | null>(null);
   const [emailError, setEmailError] = useState<string>('');
 
+  // Remove the problematic auth listener that was causing auto-redirect
+  // The homepage should be accessible to everyone without authentication checks
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      setAuthStatus('loading');
-      if (user) {
-        const { data, error } = await withErrorHandling(async () => {
-          const snap = await getDoc(doc(db, "users", user.uid));
-          return snap.data()?.role || "client";
-        });
-        
-        if (error) {
-          console.error("Failed to fetch user role:", error);
-          setError(error);
-          setAuthStatus('error');
-        } else {
-          console.log("User role:", data);
-          setAuthStatus('success');
-        }
-      } else {
-        setAuthStatus('idle');
-      }
-    });
-    return () => unsub();
+    // Set auth status to idle since this is a public page
+    setAuthStatus('idle');
   }, []);
 
   const handleNavigate = useCallback(() => {

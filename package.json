@@ -10,6 +10,11 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@paypal/paypal-js": "^8.2.0",
+    "@paypal/react-paypal-js": "^8.8.3",
+    "@paystack/inline-js": "^2.22.2",
+    "@stripe/react-stripe-js": "^3.9.0",
+    "@stripe/stripe-js": "^7.8.0",
     "@types/nodemailer": "^6.4.17",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -22,6 +27,7 @@
     "lucide-react": "^0.515.0",
     "next": "15.3.3",
     "nodemailer": "^7.0.5",
+    "paystack-js": "^0.18.1",
     "postcss": "^8.5.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -30,6 +36,7 @@
     "react-icon": "^1.0.0",
     "react-icons": "^5.5.0",
     "recharts": "^3.1.0",
+    "stripe": "^18.4.0",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {

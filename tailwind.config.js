@@ -1,5 +1,13 @@
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
+  variants: {
+    extend: {
+      backgroundColor: ['dark'],
+      boxShadow: ['dark'],
+      textColor: ['dark'],
+      borderColor: ['dark'],
+    },
+  },
   content: [
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,6 +17,18 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      boxShadow: {
+        'neumorph': '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+        'neumorph-hover': '12px 12px 24px #c2c9d6, -12px -12px 24px #ffffff',
+        'neumorph-active': '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
+        'neumorph-dark': '8px 8px 16px #1a1a1a, -8px -8px 16px #2a2a2a',
+        'neumorph-dark-hover': '12px 12px 24px #151515, -12px -12px 24px #2f2f2f',
+        'neumorph-dark-active': '4px 4px 8px #1a1a1a, -4px -4px 8px #2a2a2a',
+        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+      },
+      backdropBlur: {
+        xs: '2px',
+      },
       colors: {
         primary: {
           50: '#f5f3ff',
@@ -25,6 +45,9 @@ export default {
         },
       },
       boxShadow: {
+        // Glass shadows
+        'glass': '0 4px 30px rgba(0, 0, 0, 0.1)',
+        'glass-hover': '0 8px 32px rgba(0, 0, 0, 0.2)',
         // Light mode neumorphism
         'neumorph-sm': '5px 5px 10px #d1d5db, -5px -5px 10px #ffffff',
         'neumorph': '8px 8px 16px #d1d5db, -8px -8px 16px #ffffff',
